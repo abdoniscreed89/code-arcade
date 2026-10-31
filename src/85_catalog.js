@@ -15,6 +15,7 @@ const CATS=[
 ];
 const GAMEINFO=[
  {id:'quest',kind:'adv',em:'🌿',t:'Codeling Quest',d:'Your first adventure! Tame wild creatures by writing HTML and CSS.',cats:['html','css','flex'],lvl:'Start here',ribbon:'START HERE'},
+ {id:'spire',kind:'adv',em:'🏙️',t:'Spire City',d:'A 3D city to explore! Climb towers, roam rooftops — and your code builds bridges, opens gates and moves lifts.',cats:['html','css','flex','grid','js'],lvl:'All levels',ribbon:'NEW · 3D'},
  {id:'rift',kind:'adv',em:'🌀',t:'Rift Runner',d:'A real-time platformer! Run, jump, wall-jump and dash — and the code you write becomes REAL platforms.',cats:['html','css','flex','grid','js'],lvl:'All levels',ribbon:'NEW · PLATFORMER'},
  {id:'shadow',kind:'adv',em:'🗡️',t:'Shadowblade',d:'Sneak across the rooftops of Azura. Silent takedowns and boss fights — all written in CSS.',cats:['css','flex','grid'],lvl:'Beginner → Pro',ribbon:'NEW'},
  {id:'rune',kind:'adv',em:'🪓',t:'Runebound',d:'A father and daughter climb a frozen mountain. Every rune on the axe is JavaScript.',cats:['js'],lvl:'Beginner → Pro',ribbon:'NEW'},
@@ -42,6 +43,7 @@ const PCATS=[
 function gameProgress(id){
   if(id==='quest'){const q=QUEST.progress();return{done:q.done,total:q.total,label:`${q.done}/${q.total} Codelings · ${q.badges}/4 badges`};}
   if(id==='quest2'){const q=QUEST2.progress();return{done:q.done,total:q.total,label:`${q.done}/${q.total} battles · ${q.badges}/7 badges`};}
+  if(id==='spire'&&window.SPIRE){const q=SPIRE.progress();return{done:q.done,total:q.total,label:q.label};}
   if(id==='rift'&&window.RIFT){const q=RIFT.progress();return{done:q.done,total:q.total,label:q.label};}
   if(window.SAGAS&&SAGAS[id]){const q=SAGAS[id].progress();return{done:q.done,total:q.total,label:`${q.done}/${q.total} battles · ${q.chapters}/${SAGAS[id]._test.CH.length} chapters`};}
   const g=GAMES[id];if(!g)return{done:0,total:1,label:''};const p=g.progress();return{done:p.done,total:p.total,stars:p.stars,max:p.max,label:`${p.done}/${p.total} ${g.def.unit||'Level'}s · ⭐ ${p.stars}/${p.max}`};
@@ -89,14 +91,16 @@ function allLevels(){
   for(const g of GAMEINFO){if(g.kind!=='game')continue;const G=GAMES[g.id];if(!G)continue;G.def.levels.forEach((L,i)=>out.push({gid:g.id,i,L,title:L.title,topic:topicOf(g.id,L)}));}
   for(const P of projectList()){const G=GAMES[P.id];G.def.levels.forEach((L,i)=>out.push({gid:P.id,i,L,title:L.title,topic:topicOf(P.id,Object.assign({type:L.kind==='js'?'js':L.kind==='css'?'css':'html'},L)),proj:true}));}
   for(const id of ['shadow','rune'])if(window.SAGAS&&SAGAS[id])SAGAS[id]._test.LS.forEach(L=>out.push({gid:id,L,title:L.enemy+' — '+L.concept,topic:topicOf(id,L),saga:true}));
+  if(window.SPIRE)SPIRE.lessons().forEach(L=>out.push({gid:'spire',L,title:'🏙️ '+L._lv.name+' — '+L.concept,topic:spireTopic(L),spire:true}));
   if(window.RIFT)RIFT.lessons().forEach(L=>out.push({gid:'rift',L,title:'🌀 '+L._lv.name+' — '+L.concept,topic:riftTopic(L),rift:true}));
   return out;
 }
+function spireTopic(L){const w=L._lv._i;return L.js?(/for|loop|array|function/i.test(L.concept)?'t_func':'t_jsb'):['t_html','t_box','t_flex','t_grid','t_fx','t_jsb'][w]||'t_style';}
 function riftTopic(L){const w=L._lv._w;return L.js?(/for|loop|array|function/i.test(L.concept)?'t_func':'t_jsb'):['t_html','t_box','t_flex','t_grid','t_fx','t_jsb'][w]||'t_style';}
-function levelStars(x){if(x.rift){const s=store.get(RIFT.key,null);return s&&s.zones?(s.zones[x.L._zid]||0):0;}if(x.saga){const s=store.get(SAGAS[x.gid].key,null);return s&&s.stars?(s.stars[x.L.id]||0):0;}const G=GAMES[x.gid];const S=G.def.starStore?G.def.starStore():PROG[x.gid];return (S&&S[x.L.id])||0;}
-function levelUnlocked(x){if(x.rift){const s=store.get(RIFT.key,null);return !!(s&&s.zones&&s.zones[x.L._zid]);}if(x.saga){const s=store.get(SAGAS[x.gid].key,null);return !!(s&&s.done&&s.done[x.L.id]);}const G=GAMES[x.gid],lv=G.def.levels;const S=G.def.starStore?G.def.starStore():PROG[x.gid];const st=id=>(S&&S[id])||0;
+function levelStars(x){if(x.spire){const s=store.get(SPIRE.key,null);return s&&s.zones?(s.zones[x.L._zid]||0):0;}if(x.rift){const s=store.get(RIFT.key,null);return s&&s.zones?(s.zones[x.L._zid]||0):0;}if(x.saga){const s=store.get(SAGAS[x.gid].key,null);return s&&s.stars?(s.stars[x.L.id]||0):0;}const G=GAMES[x.gid];const S=G.def.starStore?G.def.starStore():PROG[x.gid];return (S&&S[x.L.id])||0;}
+function levelUnlocked(x){if(x.spire){const s=store.get(SPIRE.key,null)||{};const i=x.L._lv._i,ls=SPIRE._test.allLevels();return !!((s.zones||{})[x.L._zid])||i===0||!!((s.stars||{})[ls[i-1].id]);}if(x.rift){const s=store.get(RIFT.key,null);return !!(s&&s.zones&&s.zones[x.L._zid]);}if(x.saga){const s=store.get(SAGAS[x.gid].key,null);return !!(s&&s.done&&s.done[x.L.id]);}const G=GAMES[x.gid],lv=G.def.levels;const S=G.def.starStore?G.def.starStore():PROG[x.gid];const st=id=>(S&&S[id])||0;
   return x.i===0||st(lv[x.i-1].id)>0||lv.slice(x.i).some(l=>st(l.id)>0);}
-function openLevel(x){if(x.rift){APP.show('rift');setTimeout(()=>{RIFT._test.startLevel(x.L._lv.id);},60);return;}if(x.saga){APP.show(x.gid);setTimeout(()=>SAGAS[x.gid]._test.battle({kind:'practice',L:x.L}),60);return;}APP.show(x.gid);GAMES[x.gid].open(x.i);}
+function openLevel(x){if(x.spire){APP.show('spire');setTimeout(()=>{SPIRE._test.startLevel(x.L._lv.id);},60);return;}if(x.rift){APP.show('rift');setTimeout(()=>{RIFT._test.startLevel(x.L._lv.id);},60);return;}if(x.saga){APP.show(x.gid);setTimeout(()=>SAGAS[x.gid]._test.battle({kind:'practice',L:x.L}),60);return;}APP.show(x.gid);GAMES[x.gid].open(x.i);}
 
 /* ---------- totals, rank and achievements ---------- */
 function everything(){
@@ -108,8 +112,8 @@ function everything(){
   const stealth=sagas.reduce((a,s)=>a+(s.stealth||0),0),sagaDone=['shadow','rune'].filter(id=>{const p=SAGAS[id]&&SAGAS[id].progress();return p&&p.done===p.total;}).length;
   const days=STATS.days||{};const streak=(()=>{let n=0;const d=new Date();if(!days[dayKey(d)])d.setDate(d.getDate()-1);while(days[dayKey(d)]){n++;d.setDate(d.getDate()-1);}return n;})();
   const xp=stars*10+q.done*25+q2.done*25;
-  const rp=window.RIFT?RIFT.progress():{done:0,total:0};
-  return{riftDone:rp.done,riftTotal:rp.total,stars,done,total,three,projDone,projTotal:projectList().length,stealth,sagaDone,streak,xp,legend:!!(store.get(Q2KEY,null)||{}).champion,champ:!!(store.get(QKEY,null)||{}).champion,
+  const rp=window.RIFT?RIFT.progress():{done:0,total:0},spp=window.SPIRE?SPIRE.progress():{done:0,total:0};
+  return{spireDone:spp.done,spireTotal:spp.total,riftDone:rp.done,riftTotal:rp.total,stars,done,total,three,projDone,projTotal:projectList().length,stealth,sagaDone,streak,xp,legend:!!(store.get(Q2KEY,null)||{}).champion,champ:!!(store.get(QKEY,null)||{}).champion,
     minutes:Object.values(days).reduce((a,b)=>a+(+b||0),0),daysActive:Object.keys(days).length,
     topicDone:t=>allLevels().filter(x=>x.topic===t&&levelStars(x)>0).length};
 }
@@ -137,6 +141,8 @@ const ACH=[
  ['stealth','🤫','Silent Shadow','Make 15 silent takedowns.',E=>E.stealth>=15],
  ['saga1','🗡️','Hero of the Story','Finish a whole adventure story.',E=>E.sagaDone>=1],
  ['saga2','👑','Legend of Two Lands','Finish both story sagas.',E=>E.sagaDone>=2],
+ ['spire1','🏙️','Rooftop Runner','Synchronize District 1 of Spire City.',E=>E.spireDone>=1],
+ ['spire6','🦉','Legend of Spire City','Synchronize every district of Spire City.',E=>E.spireDone>=E.spireTotal&&E.spireTotal>0],
  ['rift1','🌀','Rift Runner','Finish World 1 of Rift Runner.',E=>E.riftDone>=5],
  ['rift30','🌌','Master of the Rifts','Finish every Rift Runner level.',E=>E.riftDone>=E.riftTotal&&E.riftTotal>0],
  ['champ','🏆','Code Champion','Become champion in Codeling Quest.',E=>E.champ],
@@ -160,6 +166,7 @@ function cheatSheet(){if(_sheet)return _sheet;const seen=new Set(),out=[];
   try{QUEST._test.CH.forEach(c=>add(c.concept,c.learn,c.example,'Codeling Quest',topicOf('quest',c)));}catch(e){}
   try{QUEST2._test.ALL.forEach(c=>add(c.concept,c.learn,c.example,'Codeling Legends',topicOf(c.type==='js'?'rune':c.type==='html'?'form':'shadow',c)));}catch(e){}
   for(const id of ['shadow','rune'])try{SAGAS[id]._test.LS.forEach(L=>add(L.concept,L.learn,L.example,SAGAS[id].def.title,topicOf(id,L)));}catch(e){}
+  try{SPIRE.lessons().forEach(L=>add(L.concept,L.learn,L.example,'Spire City',spireTopic(L)));}catch(e){}
   try{RIFT.lessons().forEach(L=>add(L.concept,L.learn,L.example,'Rift Runner',riftTopic(L)));}catch(e){}
   try{(window.__SPELL.S||[]).forEach(L=>add(L.title,L.learn,L.example||L.answer,'Spell Academy','t_jsb'));}catch(e){}
   _sheet=out;return out;}

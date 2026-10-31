@@ -61,7 +61,7 @@ function renderHub(cat){
   if(HUBCAT==='sheet'){const q=$('#sheetQ');const draw=()=>{SHEETQ=q.value;renderSheet(q.value);};q.oninput=debounce(draw,150);draw();}
   showLastBackup();
 }
-function pathHTML(){const steps=[['quest','🌿','Codeling Quest','first HTML & CSS'],['rift','🌀','Rift Runner','code builds the world'],['shadow','🗡️','Shadowblade','all of CSS'],['rune','🪓','Runebound','JavaScript'],['proj','🛠️','Projects','build real sites']];
+function pathHTML(){const steps=[['quest','🌿','Codeling Quest','first HTML & CSS'],['rift','🌀','Rift Runner','code builds the world'],['spire','🏙️','Spire City','explore in 3D'],['shadow','🗡️','Shadowblade','all of CSS'],['rune','🪓','Runebound','JavaScript'],['proj','🛠️','Projects','build real sites']];
   return `<div class="path"><b>🧭 Not sure where to start?</b> Follow the path:<div class="pathrow">${steps.map(([id,em,t,d],i)=>`${i?'<span class="arrow">→</span>':''}<button class="pstep" ${id==='proj'?'data-cat2="proj"':`data-path="${id}"`}><span>${em}</span><b>${t}</b><small>${d}</small></button>`).join('')}</div></div>`;}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-cat2]');if(b)renderHub(b.dataset.cat2);});
 function topicCard(t){const L=allLevels().filter(x=>x.topic===t.id),d=L.filter(x=>levelStars(x)>0).length;
@@ -109,8 +109,8 @@ const BKEY='code-arcade-last-backup'+SFX;
 function totalStars(arc){let n=0;for(const k in arc){if(k==='proj'){for(const pr of Object.values(arc.proj||{}))if(pr&&pr.stars)for(const v of Object.values(pr.stars))if(typeof v==='number'&&v>=0&&v<=3)n+=v;continue;}const o=k==='cafe'?(arc.cafe&&arc.cafe.stars)||{}:arc[k];if(o&&typeof o==='object')for(const v of Object.values(o))if(typeof v==='number'&&v>=0&&v<=3)n+=v;}return n;}
 function showLastBackup(){const el=$('#lastBackup');if(!el)return;const d=store.get(BKEY,null);el.textContent=d?'Last backup: '+new Date(d).toLocaleString():'No backup downloaded yet.';}
 $('#exportProg').onclick=()=>{
-  const sagas={};SAGA_IDS.forEach(g=>{sagas[g]=store.get('saga-'+g+'-v1'+SFX,null);});const rift=store.get('rift-v1'+SFX,null);
-  const data={app:'code-arcade',version:4,exportedAt:new Date().toISOString(),profile:{name:ME.name,avatar:ME.avatar},arcade:PROG,quest:store.get(QKEY,null),legends:store.get(Q2KEY,null),sagas,rift,stats:STATS};
+  const sagas={};SAGA_IDS.forEach(g=>{sagas[g]=store.get('saga-'+g+'-v1'+SFX,null);});const rift=store.get('rift-v1'+SFX,null),spire=store.get('spire-v1'+SFX,null);
+  const data={app:'code-arcade',version:4,exportedAt:new Date().toISOString(),profile:{name:ME.name,avatar:ME.avatar},arcade:PROG,quest:store.get(QKEY,null),legends:store.get(Q2KEY,null),sagas,rift,spire,stats:STATS};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='code-arcade-progress-'+(ME.name||'player').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'-'+new Date().toISOString().slice(0,10)+'.json';
   document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);
@@ -134,6 +134,7 @@ $('#importFile').onchange=e=>{
         try{if(d.quest)localStorage.setItem(QKEY,JSON.stringify(d.quest));else localStorage.removeItem(QKEY);
           if(d.legends)localStorage.setItem(Q2KEY,JSON.stringify(d.legends));else localStorage.removeItem(Q2KEY);
           SAGA_IDS.forEach(g=>{const k='saga-'+g+'-v1'+SFX,v=d.sagas&&d.sagas[g];if(v&&typeof v==='object')localStorage.setItem(k,JSON.stringify(v));else localStorage.removeItem(k);});
+          if(d.spire&&typeof d.spire==='object')localStorage.setItem('spire-v1'+SFX,JSON.stringify(d.spire));else localStorage.removeItem('spire-v1'+SFX);
           if(d.rift&&typeof d.rift==='object')localStorage.setItem('rift-v1'+SFX,JSON.stringify(d.rift));else localStorage.removeItem('rift-v1'+SFX);
           if(d.stats&&typeof d.stats==='object'&&d.stats.levels)localStorage.setItem(STKEY,JSON.stringify(d.stats));}catch(_){}
         location.reload();},'primary']]);};
