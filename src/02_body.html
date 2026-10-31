@@ -1,0 +1,168 @@
+</head>
+<body>
+
+<!-- ================= HUB ================= -->
+<section class="screen" id="hub">
+  <div class="hubbar"><div class="hubbrand pix" role="heading" aria-level="1">CODE<br>ARCADE</div>
+    <div class="hubbar-r"><button class="chip pchip" id="playerChip" aria-label="Switch player"></button><button class="btn sm" id="openProfile">🏅 Profile</button><button class="btn sm primary" id="openReport">📊 Report</button></div></div>
+  <div class="hubwrap">
+    <div id="hubWelcome"></div>
+    <nav class="cattabs" id="catTabs" aria-label="Categories"></nav>
+    <div id="hubBody"></div>
+    <div class="hubfoot">
+      <div class="box backup">
+        <b>💾 Your progress</b>
+        <p class="muted" style="margin:6px 0 0;font-size:14px">Progress saves automatically, but only on this device and browser. Download a backup file now and then — if you clear your browser or switch phones, load it back in.</p>
+        <div class="row2"><button class="btn primary sm" id="exportProg">⬇️ Download my progress</button><button class="btn sm" id="importProg">⬆️ Load progress from file</button><input type="file" id="importFile" accept=".json,application/json" hidden></div>
+        <p class="muted" style="margin:8px 0 0;font-size:13px" id="lastBackup"></p>
+      </div>
+      <p><button class="btn ghost sm" id="resetAll">Reset all progress</button></p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PROFILE ================= -->
+<section class="screen hidden" id="profile">
+  <div class="gwrap"><div class="topbar"><button class="btn sm" id="profBack">← Arcade</button><div class="gt"><span class="ge">🏅</span><span>My profile</span></div><button class="btn sm" id="profReport">📊 Report</button></div><div id="profBody"></div></div>
+</section>
+
+<!-- ================= CODELING QUEST ================= -->
+<section class="screen hidden" id="g-quest">
+<div id="app">
+  <header>
+    <button class="chip" id="qBack">← Arcade</button>
+    <h1 class="logo pix">CODELING<br>QUEST</h1>
+    <div class="stats">
+      <span class="chip" id="hudName">—</span>
+      <span class="chip" id="hudLv">Lv 1</span>
+      <span class="chip">HP<span class="minihp"><i id="hudHp" style="width:100%"></i></span></span>
+      <span class="chip" id="hudBadges">🏅 0/4</span>
+      <button class="chip" id="btnCodex">📘 Codedex</button>
+      <button class="chip" id="btnMenu">⚙️</button>
+    </div>
+  </header>
+  <div id="stage">
+    <canvas id="cv" width="1280" height="960" aria-label="Game world"></canvas>
+    <div id="banner" class="pix"></div>
+    <div id="flash"></div>
+    <div id="dialog" class="hidden"><span class="who" id="dWho"></span><span id="dText"></span><span class="more">▼</span></div>
+  </div>
+  <div class="controls">
+    <div class="dpad" id="dpad">
+      <button class="u" data-d="up" aria-label="Up">▲</button>
+      <button class="l" data-d="left" aria-label="Left">◀</button>
+      <button class="r" data-d="right" aria-label="Right">▶</button>
+      <button class="d" data-d="down" aria-label="Down">▼</button>
+    </div>
+    <div class="mid">Move: <kbd>Arrows</kbd> / <kbd>WASD</kbd><br>Talk / next: <kbd>Space</kbd> or <b>A</b><br>Wild Codelings hide in <b>tall grass</b> 🌿</div>
+    <button class="abtn" id="aBtn" aria-label="A button">A</button>
+  </div>
+</div>
+</section>
+<div id="title" class="overlay hidden"></div>
+<div id="battle" class="overlay hidden">
+  <div class="bwrap">
+    <div class="arena">
+      <div class="hpcard foe"><span id="foeName">—</span><small id="foeTag"></small><div class="hp"><i id="foeHp"></i></div></div>
+      <div class="plat f"></div><div class="plat m"></div>
+      <div class="sprite" id="foeSprite"></div>
+      <div class="sprite" id="meSprite"></div>
+      <div class="hpcard me"><span id="meName">—</span><small id="meTag"></small><div class="hp"><i id="meHp"></i></div><small id="meHpTxt"></small></div>
+    </div>
+    <div class="bmsg" id="bmsg"></div>
+    <div class="work">
+      <div class="box">
+        <div class="tabs"><button data-tab="lesson">📖 Lesson</button><button data-tab="mission">🎯 Mission</button></div>
+        <div id="tabLesson"></div>
+        <div id="tabMission"></div>
+        <div class="edhead">✍️ Your code <small>Ctrl + Enter = Attack</small></div>
+        <textarea id="editor" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Code editor"></textarea>
+        <div class="snips" id="snips"></div>
+      </div>
+      <div class="box">
+        <div class="edhead" style="margin-top:0">👀 Live preview <small>updates as you type</small></div>
+        <iframe id="preview" sandbox="allow-same-origin" title="Live preview"></iframe>
+        <div class="actions">
+          <button class="btn primary big wide" id="bAttack">⚔️ ATTACK! <small style="font-weight:700">(check my code)</small></button>
+          <button class="btn" id="bHint">💡 Hint</button>
+          <button class="btn" id="bTip">✨ Tip</button>
+          <button class="btn" id="bAnswer">👁 Answer</button>
+          <button class="btn ghost" id="bReset">↺ Reset code</button>
+          <button class="btn ghost" id="bRun">🏃 Run away</button>
+        </div>
+        <div id="feedback" class="feedback"></div>
+        <div id="hintBox" class="hintbox"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ================= CODELING LEGENDS ================= -->
+<section class="screen hidden" id="g-quest2">
+<div id="lgApp">
+  <header>
+    <button class="chip" id="lgBack">← Arcade</button>
+    <h1 class="logo pix">CODELING<br>LEGENDS</h1>
+    <div class="stats">
+      <span class="chip" id="lgName">—</span>
+      <span class="chip" id="lgLv">Lv 1</span>
+      <span class="chip">HP<span class="minihp"><i id="lgHp" style="width:100%"></i></span></span>
+      <span class="chip" id="lgCoins">🪙 0</span>
+      <span class="chip" id="lgBadges">🏅 0/7</span>
+    </div>
+  </header>
+  <div class="lggoal" id="lgGoal"></div>
+  <div id="lgStage">
+    <canvas id="lgCv" width="1280" height="896" aria-label="Game world"></canvas>
+    <div id="lgBanner" class="pix"></div>
+    <div id="lgFlash"></div>
+    <div id="lgDialog" class="hidden"><span id="lgWho"></span><span id="lgText"></span><span class="more">▼</span></div>
+  </div>
+  <div class="lgtools">
+    <button class="chip" id="lgDexBtn">📘 Codedex</button>
+    <button class="chip" id="lgBagBtn">🎒 Bag</button>
+    <button class="chip" id="lgMapBtn">🗺️ Fly</button>
+    <button class="chip" id="lgMenuBtn">⚙️ Menu</button>
+  </div>
+  <div class="controls">
+    <div class="dpad" id="lgDpad">
+      <button class="u" data-d="up" aria-label="Up">▲</button>
+      <button class="l" data-d="left" aria-label="Left">◀</button>
+      <button class="r" data-d="right" aria-label="Right">▶</button>
+      <button class="d" data-d="down" aria-label="Down">▼</button>
+    </div>
+    <div class="mid">Move: <kbd>Arrows</kbd> / <kbd>WASD</kbd><br>Talk / open: <kbd>Space</kbd> or <b>A</b><br>Wild Codelings hide in <b>tall grass</b> 🌿</div>
+    <button class="abtn" id="lgA" aria-label="A button">A</button>
+  </div>
+</div>
+</section>
+<div id="lgTitle" class="overlay hidden"></div>
+<div id="lgBattle" class="overlay hidden">
+  <div class="lgb-wrap">
+    <div class="lgb-arena">
+      <div class="lgb-card foe"><span class="nm">—</span><small class="tg"></small><div class="hp"><i></i></div></div>
+      <div class="plat f"></div><div class="plat m"></div>
+      <div class="lgb-mon foe"><div class="spr"></div></div>
+      <div class="lgb-mon me"><div class="spr"></div></div>
+      <div class="lgb-card me"><span class="nm">—</span><small class="tg"></small><div class="hp"><i></i></div><small class="hpt"></small></div>
+      <div class="lgb-fx"></div>
+    </div>
+    <div class="lgb-bar"><div class="bmsg"></div>
+      <button class="btn sm" data-t="potion">🧪 Potion</button><button class="btn sm" data-t="scroll">📜 Hint Scroll</button><button class="btn sm ghost" data-t="run">🏃 Run</button></div>
+    <div class="lgb-scroll hidden"></div>
+    <div class="lgb-panel"></div>
+  </div>
+</div>
+
+<!-- ================= REPORT ================= -->
+<section class="screen hidden" id="report">
+  <div class="gwrap">
+    <div class="topbar"><button class="btn sm" id="repBack">← Arcade</button><div class="gt"><span class="ge">📊</span><span>Progress report</span></div>
+      <button class="btn sm primary" id="repDl">⬇️ Download</button><button class="btn sm" id="repPrint">🖨️ Print / PDF</button></div>
+    <iframe id="reportFrame" title="Progress report" sandbox="allow-same-origin allow-modals"></iframe>
+  </div>
+</section>
+
+<div id="modal" class="hidden"><div class="card" id="modalCard"></div></div>
+
