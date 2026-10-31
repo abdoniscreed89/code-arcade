@@ -10,7 +10,7 @@ const D={id:'s4',name:'Clockwork Plaza',theme:'clock',topic:'CSS Grid — build 
  outro:["Pip: Synchronized! Hear that? Every clock in the plaza is ticking again.","Kai: Columns, gaps, lines, a word map and a pyramid. Grid is like building with a tray of tiles!","Baron Rust: Tick-tock, little runner… your time is running out. My castle walls are waiting."],
  start:[4,37],startFace:Math.PI/2,sync:[9,5],syncFace:-Math.PI/2,hay:[3,6],
  feathers:[[13,29],[4,30],[36,32],[39,31],[30,19],[33,9],[36,4],[7,4]],
- bots:[[2,33,10,33],[25,38,40,38],[30,7,39,7]],
+ bots:[[2,28,16,28],[25,38,40,38],[30,7,39,7]],
  map:[
   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",

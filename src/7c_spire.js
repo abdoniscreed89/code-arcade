@@ -70,7 +70,7 @@ async function checkCode(Z,frame,code){const {rects,api}=await layout(Z,frame,co
   return{ok:true,rects};}
 /* a zone: {at:[cx,cz], y, w, h (px), kind:'side'|'plan', face:'s'|'n'|'e'|'w', depth (m), thick (m)} */
 function boxOf(Z,r){const F=FACES[Z.face||'s'],W=Z.w/PX,Hm=Z.h/PX;const a0=-W/2+r.x/PX,a1=a0+r.w/PX;let b0,b1,y0,y1;
-  if(Z.kind==='plan'){b1=Hm/2-r.y/PX;b0=b1-r.h/PX;y1=Z.y;y0=Z.y-(Z.thick||.3);}
+  if(Z.kind==='plan'){/* page top = far side (away from the viewer, -V) */b0=-Hm/2+r.y/PX;b1=b0+r.h/PX;y1=Z.y;y0=Z.y-(Z.thick||.3);}
   else{const d=Z.depth||2;b0=-d/2;b1=d/2;y1=Z.y-r.y/PX;y0=y1-r.h/PX;}
   const xs=[a0,a1].flatMap(a=>[b0,b1].map(b=>Z.at[0]+F.R[0]*a+F.V[0]*b)),zs=[a0,a1].flatMap(a=>[b0,b1].map(b=>Z.at[1]+F.R[1]*a+F.V[1]*b));
   return{x0:Math.min(...xs),x1:Math.max(...xs),z0:Math.min(...zs),z1:Math.max(...zs),y0,y1,col:r.col,label:r.label};}
@@ -286,7 +286,9 @@ function allDyn(){const out=[];ZONES.forEach(Z=>out.push(...zoneBoxes(Z)));retur
 const animZones=dt=>{ZONES.forEach(Z=>{
   if(Z.ft<1){Z.ft=Math.min(1,Z.ft+dt*2.2);const e=1-Math.pow(1-Z.ft,3);Z.show=Z.rects.map((r,i)=>{const f=Z.from&&Z.from[i]||{x:r.x,y:Z.kind==='plan'?r.y:r.y+r.h,w:r.w,h:Z.kind==='plan'?r.h:0};return{...r,x:f.x+(r.x-f.x)*e,y:f.y+(r.y-f.y)*e,w:f.w+(r.w-f.w)*e,h:f.h+(r.h-f.h)*e};});}
   else if(Z.lesson.anim&&Z.frame.contentDocument){/* moving blocks: read the live layout every frame */
-    try{const a=makeApi(Z.frame.contentDocument,Z.frame.contentWindow);const rs=readRects(Z,a);if(rs.length===Z.show.length||!Z.show.length){Z.rects=rs;Z.show=rs;}}catch(e){}}});};
+    try{const a=makeApi(Z.frame.contentDocument,Z.frame.contentWindow);const rs=readRects(Z,a);if(rs.length===Z.show.length||!Z.show.length){Z.rects=rs;Z.show=rs;}}catch(e){}}
+  /* the see-through preview of a moving lesson moves too */
+  if(Z.lesson.anim&&activeZone===Z&&Z.ghost&&preview&&preview.contentDocument){try{Z.ghost=readRects(Z,makeApi(preview.contentDocument,preview.contentWindow));}catch(e){}}});};
 const zoneCol=(r)=>/rgba?\(0, 0, 0, 0\)|transparent/.test(r.col||'')?TH.code:(r.col||TH.code);
 const unit=new THREE.BoxGeometry(1,1,1),unitEdges=new THREE.EdgesGeometry(unit);
 function syncMeshes(){
@@ -311,7 +313,7 @@ const pHit=(x,y,z,p)=>hits(x-PH.r,x+PH.r,y,y+PH.h,z-PH.r,z+PH.r);
 function step(dt){const p=player;timeIn+=dt;
   /* moving blocks carry Kai */
   const prev=new Map(dyn.map(b=>[b.key,b]));dyn=allDyn();
-  if(p.on!=null&&p.ground){const o=prev.get(p.on),n=dyn.find(b=>b.key===p.on);if(o&&n){p.x+=(n.x0-o.x0);p.z+=(n.z0-o.z0);if(n.y1>o.y1)p.y=n.y1;}}
+  if(p.on!=null&&p.ground){const o=prev.get(p.on),n=dyn.find(b=>b.key===p.on);if(o&&n){p.x+=(n.x0-o.x0);p.z+=(n.z0-o.z0);if(n.y1>o.y1||Math.abs(p.y-o.y1)<.08)p.y=n.y1;}}/* follow it up AND down */
   {const inside=pHit(p.x,p.y+.05,p.z);if(inside&&inside.box&&inside.top-p.y<1.2)p.y=inside.top;}
   /* input → wanted direction (relative to the camera) */
   let ix=(keys.right?1:0)-(keys.left?1:0)+stick.x,iz=(keys.up?1:0)-(keys.down?1:0)+stick.y;const il=Math.hypot(ix,iz);if(il>1){ix/=il;iz/=il;}
