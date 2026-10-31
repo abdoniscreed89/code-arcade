@@ -1,1 +1,136 @@
-/* placeholder — district file */
+/* Spire City — District 4: Clockwork Plaza (CSS Grid) */
+(()=>{
+/* small helpers for the checks: the boxes of everything that matches sel, in zone pixels */
+const R=(a,sel)=>a.$$(sel).map(e=>e.getBoundingClientRect()).filter(r=>r.width>=6&&r.height>=4);
+const near=(v,n,t=3)=>Math.abs(v-n)<=t;
+const tracks=(a,sel,prop)=>{const el=a.$(sel);if(!el)return 0;const v=a.css(el,prop)||'';return v==='none'?0:v.trim().split(/\s+/).length;};
+
+const D={id:'s4',name:'Clockwork Plaza',theme:'clock',topic:'CSS Grid — build in rows and columns',
+ story:["Pip: Tick… tock… Kai! Baron Rust jammed every gear in Clockwork Plaza!","Kai: The big clock tower is on that island in the north-west. How do I get there?","Pip: Clockwork machines are built in ROWS and COLUMNS. That is CSS Grid! Fix the terminals and the tiles will snap into place."],
+ outro:["Pip: Synchronized! Hear that? Every clock in the plaza is ticking again.","Kai: Columns, gaps, lines, a word map and a pyramid. Grid is like building with a tray of tiles!","Baron Rust: Tick-tock, little runner… your time is running out. My castle walls are waiting."],
+ start:[4,37],startFace:Math.PI/2,sync:[9,5],syncFace:-Math.PI/2,hay:[3,6],
+ feathers:[[13,29],[4,30],[36,32],[39,31],[30,19],[33,9],[36,4],[7,4]],
+ bots:[[2,33,10,33],[25,38,40,38],[30,7,39,7]],
+ map:[
+  "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+  "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+  "~~................~~~~~~..................~~",
+  "~~b...DDDDDDDD....~~~~~~......eee..iiii.,,~~",
+  "~~b...DDDDDDDD....~~~~~~......eee..iiii.,,~~",
+  "~~b...DDDvvDDD....~~~~~~......eee..iiii.,,~~",
+  "~~b+..DDDvvDDD....~~~~~~...........iiii.,,~~",
+  "~~b...DDDDDDDD....~~~~~~................,,~~",
+  "~~b...DDDDDDDD....~~~~~~................,,~~",
+  "~~b...DDDDDDDD....~~~~~~.........CC.....,,~~",
+  "~~b...............~~~~~~.........CC.....,,~~",
+  "~~................~~~~~~LLLLLLLLLLLLLDDDDL~~",
+  "~~,,,.............~~~~~~LLLLLLLLLLLLLDDDDL~~",
+  "~~,,,..........,,.~~~~~~..................~~",
+  "~~,,,..........,,.~~~~~~..................~~",
+  "~~,,,..........,,.~~~~~~.ddd..............~~",
+  "~~,,,.............~~~~~~.ddd..............~~",
+  "~~~~~~~~~~~~~~~~~~~~~~~~.ddd..............~~",
+  "~~~~~~~~~~~~~~~~~~~~~~~~.....ddd..........~~",
+  "~~~~~~~~~~~~~~~~~~~~~~~~.,,..ddd..........~~",
+  "~~~~~~~~~~~~~~~~~~~~~~~~.,,..ddd..........~~",
+  "~~~~~~~~~~~~~~~~~~~~~~~~..................~~",
+  "~~~~~~~~~~~~~~~~~~~~~~~~LLLLLLL......LLLLL~~",
+  "~~................~~~~~~LLLLLLL......LLLLL~~",
+  "~~.dddd..fffff....~~~~~~,,................~~",
+  "~~.dddd..fffff....~~~~~~,,................~~",
+  "~~.dddd..fffff....~~~~~~,,................~~",
+  "~~................~~~~~~..................~~",
+  "~~................~~~~~~..................~~",
+  "~~.ggg..cccc.C....~~~~~~..................~~",
+  "~~.ggge.cccc.C....~~~~~~..............gggg~~",
+  "~~.ggge.cccc......~~~~~~..............gggg~~",
+  "~~.ggg............~~~~~~..ffff..ggg.F.gggg~~",
+  "~~................~~~~~~..ffff..ggg...gggg~~",
+  "~~.....,,,,.eeee..~~~~~~..ffff..ggg.,,,,,,~~",
+  "~~.....,,,,.eeee..~~~~~~..ffff......,,,,,,~~",
+  "~~.....,,,,.eeee..~~~~~~............,,,,,,~~",
+  "~~.....,,,,.eeee..~~~~~~..................~~",
+  "~~.....,,,,.......~~~~~~..................~~",
+  "~~,,,,,,,,,,,,,,,,~~~~~~..................~~",
+  "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+  "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"],
+ zones:[
+  /* 1 — tile bridge over the canal (plan, seen from the south) */
+  {at:[21,30],y:0,w:256,h:64,kind:'plan',face:'s',thick:.4,term:[16,33],lesson:{id:'rzs4_1',concept:'Grid makes columns',solid:'.tile',
+   learn:"`display: grid;` turns a box into a **grid** — like a tray with slots.\n`grid-template-columns` says how many **columns** (slots side by side) the tray has.\n`1fr` means \"one fair share\". `1fr 1fr 1fr 1fr` makes 4 columns that are all the same size.",
+   example:'.tray {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n}',
+   mission:"The 4 bridge tiles are stacked in one tall pile. Put them side by side across the canal with a grid of 4 columns.",
+   job:"Inside `.bridge { }` type `display: grid;` and `grid-template-columns: 1fr 1fr 1fr 1fr;` to make 4 columns.",
+   starter:'<div class="bridge">\n  <div class="tile"></div>\n  <div class="tile"></div>\n  <div class="tile"></div>\n  <div class="tile"></div>\n</div>\n\n<style>\n.bridge {\n\n}\n.tile { width: 64px; height: 64px; background: #f59e0b; }\n.tile:nth-child(even) { background: #fcd34d; }\n</style>',
+   answer:'<div class="bridge">\n  <div class="tile"></div>\n  <div class="tile"></div>\n  <div class="tile"></div>\n  <div class="tile"></div>\n</div>\n\n<style>\n.bridge {\n  display: grid;\n  grid-template-columns: 1fr 1fr 1fr 1fr;\n}\n.tile { width: 64px; height: 64px; background: #f59e0b; }\n.tile:nth-child(even) { background: #fcd34d; }\n</style>',
+   hints:["First make it a grid: `display: grid;` goes inside `.bridge { }`.","Then say how many columns: write `1fr` once for each tile — that is 4 times.","Inside `.bridge { }`: `display: grid;` and `grid-template-columns: 1fr 1fr 1fr 1fr;`"],
+   tip:"Without a grid, boxes stack like plates. With a grid, you decide the columns — and the boxes drop into them in order.",
+   checks:[[a=>a.$('.bridge')&&a.css(a.$('.bridge'),'display')==='grid',"Put `display: grid;` inside `.bridge { }`."],
+     [a=>{const r=R(a,'.tile').sort((p,q)=>p.left-q.left);if(r.length<4||!r.every(t=>t.top<4))return false;if(r[0].left>4||r[r.length-1].right<252)return false;for(let i=1;i<r.length;i++)if(r[i].left>r[i-1].right+4)return false;return true;},
+      "All 4 tiles must sit side by side in ONE row, right across the canal. Use `grid-template-columns: 1fr 1fr 1fr 1fr;`."]]}},
+
+  /* 2 — the cog gate: two doors in a smooth wall (side, seen from the south) */
+  {at:[34,23],y:3,w:192,h:96,kind:'side',face:'s',depth:2,term:[33,26],lesson:{id:'rzs4_2',concept:'Gap makes space',solid:'.door',
+   learn:"`gap` puts **empty space between** the slots of a grid.\n`gap: 20px;` leaves 20px of nothing between every column (and every row).\nThe grid squeezes the boxes to make room for the gap.",
+   example:'.tray {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 20px;\n}',
+   mission:"Two big cog doors block the gate. They are a grid with 2 columns. Push them apart so there is a doorway in the middle.",
+   job:"Make a doorway between the 2 doors! Add `gap: 64px;` inside `.gate { }`.",
+   starter:'<div class="gate">\n  <div class="door"></div>\n  <div class="door"></div>\n</div>\n\n<style>\n.gate { display: grid; grid-template-columns: 1fr 1fr; height: 100%; }\n.door { background: #c2410c; border: 6px solid #7c2d12; border-radius: 8px; }\n</style>',
+   answer:'<div class="gate">\n  <div class="door"></div>\n  <div class="door"></div>\n</div>\n\n<style>\n.gate { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; height: 100%; }\n.door { background: #c2410c; border: 6px solid #7c2d12; border-radius: 8px; }\n</style>',
+   hints:["The space between grid slots is called `gap`.","Put it inside `.gate { … }`, after `grid-template-columns: 1fr 1fr;`.","`.gate { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; height: 100%; }`"],
+   tip:"`gap` is much easier than adding margins to every box — one line spaces out the whole grid.",
+   checks:[[a=>a.$$('.door').length===2,"Keep both `<div class=\"door\"></div>` tags — only change the CSS."],
+     [a=>R(a,'.door').length===2&&R(a,'.door').every(r=>r.width>=16),"The gap is so big the doors vanished! Use `gap: 64px;`."],
+     [a=>{const r=R(a,'.door').sort((p,q)=>p.left-q.left);return r.length===2&&r[1].left-r[0].right>=40;},"Kai needs a doorway between the doors. Add `gap: 64px;` inside `.gate { }`."],
+     [a=>R(a,'.door').every(r=>r.top<4&&r.bottom>92),"Keep `height: 100%;` so the doors stand all the way up."]]}},
+
+  /* 3 — scaffold stairs up to the terrace (side, seen from the south) */
+  {at:[37,14],y:4,w:128,h:128,kind:'side',face:'s',depth:2,term:[34,18],lesson:{id:'rzs4_3',concept:'Grid lines: start / end',solid:'.step',
+   learn:"Between grid columns are **lines**, numbered from the left: 4 columns have lines 1, 2, 3, 4 and 5.\n`grid-column: 2 / 5;` means \"start at line 2, end at line 5\" — so the box covers columns 2, 3 and 4.",
+   example:'.box { grid-column: 2 / 5; }',
+   mission:"The 4 scaffold steps are all full width, so they make a wall. Make each step start at a different line so they become stairs going up to the right.",
+   job:"Make stairs! Change `.s1` to `grid-column: 4 / 5;`, `.s2` to `3 / 5` and `.s3` to `2 / 5`. Keep `.s4` as `1 / 5`.",
+   starter:'<div class="stairs">\n  <div class="step s1"></div>\n  <div class="step s2"></div>\n  <div class="step s3"></div>\n  <div class="step s4"></div>\n</div>\n\n<style>\n.stairs { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; height: 100%; }\n.step { background: #fb923c; border: 4px solid #9a3412; }\n.s1 { grid-column: 1 / 5; }\n.s2 { grid-column: 1 / 5; }\n.s3 { grid-column: 1 / 5; }\n.s4 { grid-column: 1 / 5; }\n</style>',
+   answer:'<div class="stairs">\n  <div class="step s1"></div>\n  <div class="step s2"></div>\n  <div class="step s3"></div>\n  <div class="step s4"></div>\n</div>\n\n<style>\n.stairs { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; height: 100%; }\n.step { background: #fb923c; border: 4px solid #9a3412; }\n.s1 { grid-column: 4 / 5; }\n.s2 { grid-column: 3 / 5; }\n.s3 { grid-column: 2 / 5; }\n.s4 { grid-column: 1 / 5; }\n</style>',
+   hints:["Only change the FIRST number of each step. The last number stays `5`.","The top step `.s1` is the smallest: it starts at line 4. Each step under it starts one line further left.","`.s1 { grid-column: 4 / 5; }` `.s2 { grid-column: 3 / 5; }` `.s3 { grid-column: 2 / 5; }` `.s4 { grid-column: 1 / 5; }`"],
+   tip:"You can count lines from the right too: `-1` is always the last line. So `grid-column: 3 / -1;` reaches the right edge.",
+   checks:[[a=>R(a,'.step').length===4,"Keep all 4 steps (`.s1` to `.s4`)."],
+     [a=>{const r=R(a,'.step').sort((p,q)=>p.top-q.top);return r.every((t,i)=>near(t.top,32*i)&&t.right>=124);},"Every step must end at line `5`, on the right side. Only change the first number."],
+     [a=>{const r=R(a,'.step').sort((p,q)=>p.top-q.top);for(let i=1;i<4;i++)if(r[i].left>r[i-1].left-24)return false;return r[0].left>=24;},
+      "Each step must stick out further left than the one above it. Use `4 / 5`, `3 / 5`, `2 / 5` and `1 / 5`."]]}},
+
+  /* 4 — the word-map floor across the north canal (plan, seen from the east) */
+  {at:[21,7],y:0,w:192,h:256,kind:'plan',face:'e',thick:.4,term:[27,7],lesson:{id:'rzs4_4',concept:'Draw a map: grid-template-areas',solid:'.stone',
+   learn:"`grid-template-areas` lets you DRAW the grid with words! Each line in quotes is one row, each word is one slot.\nA dot `.` means an empty slot. A box with `grid-area: b;` goes wherever you wrote `b`.\nThe same letter twice side by side makes a bigger box.\nHere the TOP row of the map is the far side of the canal. The BOTTOM row is next to you.",
+   example:'grid-template-areas:\n  "a a"\n  ". b";',
+   mission:"Draw a stepping-stone path across the canal. Stone `a` is already on the far side. Draw stones `b`, `c` and `d` in the map so they join up.",
+   job:"Draw the path! Change the last 3 rows of the map to `\". b .\"`, `\"c c .\"` and `\"d . .\"`.",
+   starter:'<div class="floor">\n  <div class="stone a"></div>\n  <div class="stone b"></div>\n  <div class="stone c"></div>\n  <div class="stone d"></div>\n</div>\n\n<style>\n.floor {\n  display: grid;\n  height: 100%;\n  grid-template-columns: 1fr 1fr 1fr;\n  grid-template-rows: 1fr 1fr 1fr 1fr;\n  grid-template-areas:\n    ". a a"\n    ". . ."\n    ". . ."\n    ". . .";\n}\n.stone { background: #facc15; border: 5px solid #a16207; border-radius: 12px; }\n.a { grid-area: a; }\n.b { grid-area: b; }\n.c { grid-area: c; }\n.d { grid-area: d; }\n</style>',
+   answer:'<div class="floor">\n  <div class="stone a"></div>\n  <div class="stone b"></div>\n  <div class="stone c"></div>\n  <div class="stone d"></div>\n</div>\n\n<style>\n.floor {\n  display: grid;\n  height: 100%;\n  grid-template-columns: 1fr 1fr 1fr;\n  grid-template-rows: 1fr 1fr 1fr 1fr;\n  grid-template-areas:\n    ". a a"\n    ". b ."\n    "c c ."\n    "d . .";\n}\n.stone { background: #facc15; border: 5px solid #a16207; border-radius: 12px; }\n.a { grid-area: a; }\n.b { grid-area: b; }\n.c { grid-area: c; }\n.d { grid-area: d; }\n</style>',
+   hints:["Each row of the map is in its own quotes and has exactly 3 words, with spaces between them.","Row 2 has `b` in the middle. Row 3 has `c` twice on the left. Row 4 has `d` on the left.","The map should be: `\". a a\"` `\". b .\"` `\"c c .\"` `\"d . .\"`"],
+   tip:"A letter can fill many slots, but they must make a rectangle. `\"c . c\"` breaks the whole map!",
+   checks:[[a=>a.$('.floor')&&a.css(a.$('.floor'),'gridTemplateAreas')!=='none',"The map is broken! Every row needs 3 words in quotes, and each letter must make a rectangle. Copy: `\". b .\"`, `\"c c .\"`, `\"d . .\"`."],
+     [a=>{const r=R(a,'.stone');const far=r.filter(t=>t.top<4),near_=r.filter(t=>t.bottom>252);if(!far.length||!near_.length)return false;
+        const touch=(p,q)=>p.left<=q.right+2&&q.left<=p.right+2&&p.top<=q.bottom+2&&q.top<=p.bottom+2;
+        const seen=new Set(far),list=[...far];while(list.length){const p=list.pop();r.forEach(q=>{if(!seen.has(q)&&touch(p,q)){seen.add(q);list.push(q);}});}
+        return near_.some(t=>seen.has(t));},
+      "The stones must join up from the bottom row to the top row. Make the map `\". a a\"`, `\". b .\"`, `\"c c .\"`, `\"d . .\"`."]]}},
+
+  /* 5 — the stepped pyramid up to the clock tower (side, seen from the south) */
+  {at:[10,11],y:4,w:256,h:128,kind:'side',face:'s',depth:2,term:[10,14],lesson:{id:'rzs4_5',concept:'repeat() — the whole grid',solid:'.layer',
+   learn:"`repeat()` is a shortcut. `repeat(8, 1fr)` means the same as writing `1fr` eight times.\nIt works for columns AND for rows: `grid-template-rows: repeat(4, 1fr);` makes 4 rows.\nNow use everything: columns, rows and lines!",
+   example:'.tray {\n  display: grid;\n  grid-template-columns: repeat(3, 1fr);\n  grid-template-rows: repeat(2, 1fr);\n}',
+   mission:"Build the stepped pyramid up to the clock tower. It needs 8 columns and 4 rows. Then put the top layer in the middle.",
+   job:"In `.pyramid { }` set `grid-template-columns: repeat(8, 1fr);` and `grid-template-rows: repeat(4, 1fr);`. Then give `.top` the spot `grid-column: 4 / 6;`.",
+   starter:'<div class="pyramid">\n  <div class="layer top"></div>\n  <div class="layer mid"></div>\n  <div class="layer low"></div>\n  <div class="layer base"></div>\n</div>\n\n<style>\n.pyramid { display: grid; height: 100%; grid-template-columns: 1fr; grid-template-rows: 1fr; }\n.layer { background: #fbbf24; border: 4px solid #b45309; }\n.top { }\n.mid { grid-column: 3 / 7; }\n.low { grid-column: 2 / 8; }\n.base { grid-column: 1 / 9; }\n</style>',
+   answer:'<div class="pyramid">\n  <div class="layer top"></div>\n  <div class="layer mid"></div>\n  <div class="layer low"></div>\n  <div class="layer base"></div>\n</div>\n\n<style>\n.pyramid { display: grid; height: 100%; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(4, 1fr); }\n.layer { background: #fbbf24; border: 4px solid #b45309; }\n.top { grid-column: 4 / 6; }\n.mid { grid-column: 3 / 7; }\n.low { grid-column: 2 / 8; }\n.base { grid-column: 1 / 9; }\n</style>',
+   hints:["Change `grid-template-columns: 1fr;` to `grid-template-columns: repeat(8, 1fr);`.","Change `grid-template-rows: 1fr;` to `grid-template-rows: repeat(4, 1fr);`.","Last, fill in `.top { grid-column: 4 / 6; }` so the top layer sits in the middle."],
+   tip:"`repeat(12, 1fr)` is how many real websites make their 12-column layouts!",
+   checks:[[a=>tracks(a,'.pyramid','gridTemplateColumns')===8,"The pyramid needs 8 columns: `grid-template-columns: repeat(8, 1fr);`."],
+     [a=>tracks(a,'.pyramid','gridTemplateRows')===4,"The pyramid needs 4 rows: `grid-template-rows: repeat(4, 1fr);`."],
+     [a=>{const r=R(a,'.layer').sort((p,q)=>p.top-q.top);return r.length===4&&r.every((t,i)=>near(t.top,32*i)&&near(t.height,32));},"Each layer needs its own row. Give `.top` the spot `grid-column: 4 / 6;`."],
+     [a=>{const r=R(a,'.layer').sort((p,q)=>p.top-q.top);if(r.length<4)return false;for(let i=1;i<4;i++)if(r[i].left>r[i-1].left-24||r[i].right<r[i-1].right+24)return false;return true;},
+      "Every layer must be wider than the one above it on both sides. Use `.top { grid-column: 4 / 6; }`."]]}}
+ ]};
+SPIRE_DATA.districts.push(D);
+})();
