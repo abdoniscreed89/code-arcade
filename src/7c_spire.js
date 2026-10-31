@@ -24,7 +24,7 @@ const THEMES={
  garden:{name:'Garden Terraces',sky:['#a5e4ff','#f4ffe9'],fog:'#eef9e8',street:'#efe6cf',street2:'#e1d3ae',grass:'#8fd474',walls:['#ecfccb','#fef9c3','#fce7f3','#e0f2fe','#f5f5f4','#dcfce7'],roof:['#16a34a','#65a30d','#ea580c'],smooth:'#fffdf5',smoothRoof:'#ecfdf5',water:'#86e0f0',code:'#16a34a'},
  clock:{name:'Clockwork Plaza',sky:['#ffd9a8','#fff6e8'],fog:'#fbefdc',street:'#f2dfc0',street2:'#e5c898',grass:'#b9d98c',walls:['#fde68a','#fed7aa','#fef3c7','#f5d0c5','#e7e5e4','#fcd9b6'],roof:['#b45309','#c2410c','#92400e'],smooth:'#fffaf0',smoothRoof:'#f5e9d6',water:'#7cd4f0',code:'#d97706'},
  castle:{name:'Castle Gates',sky:['#ffc9d6','#fff1f4'],fog:'#fbecef',street:'#efe2e2',street2:'#e0cccc',grass:'#a7d98b',walls:['#fbcfe8','#fecdd3','#e9d5ff','#fde68a','#f5f5f4','#fed7e2'],roof:['#be185d','#9333ea','#e11d48'],smooth:'#ffffff',smoothRoof:'#fce7f3',water:'#93d8f5',code:'#e11d48'},
- sky:{name:'Sky Observatory',sky:['#c7d2fe','#fdf4ff'],fog:'#f1eefe',street:'#ece9fb',street2:'#dcd6f7',grass:'#b8e3a0',walls:['#e0e7ff','#ede9fe','#fae8ff','#e0f2fe','#f1f5f9','#fef9c3'],roof:['#6366f1','#8b5cf6','#0ea5e9'],smooth:'#ffffff',smoothRoof:'#eef2ff',water:'#a5d8ff',code:'#4f46e5'}
+ sky:{name:'Sky Observatory',sky:['#c7d2fe','#fdf4ff'],fog:'#f1eefe',street:'#ece9fb',street2:'#dcd6f7',grass:'#b8e3a0',walls:['#e0e7ff','#ede9fe','#fae8ff','#e0f2fe','#f1f5f9','#fef9c3'],roof:['#6366f1','#8b5cf6','#0ea5e9'],smooth:'#ffffff',smoothRoof:'#eef2ff',water:'#f3f1ff',bed:'#e0e7ff',cloudSea:1,code:'#4f46e5'}
 };
 
 /* ------------------------------------------------------------------ map parsing
@@ -160,14 +160,16 @@ function buildCity(D,S,th,low){
   [mC,mS,mT].forEach(m=>{m.castShadow=!low;m.receiveShadow=!low;grp.add(m);});
   /* sea + sea bed */
   const water=new THREE.Mesh(new THREE.PlaneGeometry(600,600),lam(th.water,{map:tx.water,transparent:true,opacity:.88}));water.rotation.x=-Math.PI/2;water.position.set(S.XW/2,-.35,S.ZD/2);tx.water.repeat.set(150,150);water.receiveShadow=!low;grp.add(water);
-  const bed=new THREE.Mesh(new THREE.PlaneGeometry(600,600),lam('#f3e4c2'));bed.rotation.x=-Math.PI/2;bed.position.set(S.XW/2,-1.6,S.ZD/2);grp.add(bed);
+  const bed=new THREE.Mesh(new THREE.PlaneGeometry(600,600),lam(th.bed||'#f3e4c2'));bed.rotation.x=-Math.PI/2;bed.position.set(S.XW/2,-1.6,S.ZD/2);grp.add(bed);
   /* decorations: trees on grass, hay, lanterns, flags on tall roofs */
   const r=rng(hash(D.id));const trunk=lam('#b07a4e'),leaf=[lam('#7cc95a'),lam('#5fb35a'),lam('#9ad66f')];
   const tGeo=flat(new THREE.CylinderGeometry(.09,.13,1,5)),lGeo=flat(new THREE.IcosahedronGeometry(.75,0)),coneGeo=flat(new THREE.ConeGeometry(.7,1.6,6));
   for(let z=0;z<S.ZD;z++)for(let x=0;x<S.XW;x++){const c=cellAt(S,x,z);
-    if(c.grass&&r()<.12){const t=new THREE.Group();const tr=new THREE.Mesh(tGeo,trunk);tr.position.y=.5;const lf=new THREE.Mesh(r()<.5?lGeo:coneGeo,leaf[Math.floor(r()*3)]);lf.position.y=1.4;const s=.7+r()*.5;t.scale.set(s,s,s);t.add(tr,lf);t.position.set(x+.5,0,z+.5);t.rotation.y=r()*6;tr.castShadow=lf.castShadow=!low;grp.add(t);}
+    if(c.grass&&r()<.12&&!(D.start&&Math.abs(x-D.start[0])<3&&Math.abs(z-D.start[1])<3)){const t=new THREE.Group();const tr=new THREE.Mesh(tGeo,trunk);tr.position.y=.5;const lf=new THREE.Mesh(r()<.5?lGeo:coneGeo,leaf[Math.floor(r()*3)]);lf.position.y=1.4;const s=.7+r()*.5;t.scale.set(s,s,s);t.add(tr,lf);t.position.set(x+.5,0,z+.5);t.rotation.y=r()*6;tr.castShadow=lf.castShadow=!low;grp.add(t);}
     if(c.hay){const hm=new THREE.Mesh(flat(new THREE.SphereGeometry(.7,7,4,0,Math.PI*2,0,Math.PI/2)),lam('#f6d365'));hm.scale.y=.8;hm.position.set(x+.5,0,z+.5);grp.add(hm);}
     if(c.bld&&c.h>=12&&r()<.05){const pole=new THREE.Mesh(tGeo,lam('#e5e7eb'));pole.scale.set(.5,2.2,.5);pole.position.set(x+.5,c.h+1.1,z+.5);const fl=new THREE.Mesh(new THREE.PlaneGeometry(.9,.5),lam(th.code,{side:THREE.DoubleSide}));fl.position.set(x+.95,c.h+1.9,z+.5);fl.userData.flag=1;grp.add(pole,fl);}}
+  /* a sea of clouds for the sky district */
+  if(th.cloudSea){const sg=flat(new THREE.IcosahedronGeometry(1.6,1)),sm=lam('#ffffff');for(let k=0;k<160;k++){const x=r()*(S.XW+60)-30,z=r()*(S.ZD+60)-30,c=cellAt(S,Math.floor(x),Math.floor(z));if(c&&!c.water)continue;const m=new THREE.Mesh(sg,sm);m.position.set(x,-.55+r()*.3,z);m.scale.set(1+r()*1.5,.35+r()*.2,1+r()*1.5);m.rotation.y=r()*6;grp.add(m);}}
   /* drifting clouds */
   const cg=flat(new THREE.IcosahedronGeometry(3,0)),cm=lam('#ffffff',{transparent:true,opacity:.92});
   for(let k=0;k<10;k++){const cl=new THREE.Group();for(let j=0;j<3;j++){const m=new THREE.Mesh(cg,cm);m.position.set(j*3.2-3,Math.sin(j)*1,0);m.scale.set(1,.55,.8);cl.add(m);}cl.position.set(r()*S.XW*1.6-S.XW*.3,32+r()*14,r()*S.ZD*1.6-S.ZD*.3);cl.userData.cloud=.3+r()*.5;grp.add(cl);}
@@ -294,13 +296,13 @@ const unit=new THREE.BoxGeometry(1,1,1),unitEdges=new THREE.EdgesGeometry(unit);
 function syncMeshes(){
   ZONES.forEach(Z=>{const bs=zoneBoxes(Z);
     while(Z.meshes.length<bs.length){const m=new THREE.Mesh(unit,lam('#ffffff'));m.castShadow=m.receiveShadow=!lowEnd();const e=new THREE.LineSegments(unitEdges,new THREE.LineBasicMaterial({color:'#ffffff',transparent:true,opacity:.55}));m.add(e);city.add(m);Z.meshes.push(m);}
-    Z.meshes.forEach((m,j)=>{const b=bs[j];m.visible=!!b;if(!b)return;m.scale.set(Math.max(.02,b.x1-b.x0),Math.max(.02,b.y1-b.y0),Math.max(.02,b.z1-b.z0));m.position.set((b.x0+b.x1)/2,(b.y0+b.y1)/2,(b.z0+b.z1)/2);
+    Z.meshes.forEach((m,j)=>{const b=bs[j];m.visible=!!b;if(!b)return;m.scale.set(Math.max(.02,b.x1-b.x0-.02),Math.max(.02,b.y1-b.y0-.02),Math.max(.02,b.z1-b.z0-.02));/* a hair smaller: no flicker against walls */m.position.set((b.x0+b.x1)/2,(b.y0+b.y1)/2,(b.z0+b.z1)/2);
       const c=zoneCol(Z.show[j]);if(m.userData.c!==c){m.material.color.set(c);m.userData.c=c;}});
     Z.outline.visible=!Z.solved;Z.tag.visible=!Z.solved&&activeZone!==Z;Z.tmesh.userData.scr.material.color.set(Z.solved?'#22c55e':TH.code);Z.tmesh.userData.bang.visible=!Z.solved;
     /* ghost preview while the terminal is open */
     const g=(activeZone===Z&&Z.ghost)?Z.ghost.map(r=>boxOf(Z,r)):[];
     while(Z.gmeshes.length<g.length){const m=new THREE.Mesh(unit,new THREE.MeshBasicMaterial({color:'#a78bfa',transparent:true,opacity:.35,depthWrite:false}));const e=new THREE.LineSegments(unitEdges,new THREE.LineBasicMaterial({color:'#5b3fd1'}));m.add(e);city.add(m);Z.gmeshes.push(m);}
-    Z.gmeshes.forEach((m,j)=>{const b=g[j];m.visible=!!b;if(!b)return;m.scale.set(Math.max(.02,b.x1-b.x0),Math.max(.02,b.y1-b.y0),Math.max(.02,b.z1-b.z0));m.position.set((b.x0+b.x1)/2,(b.y0+b.y1)/2,(b.z0+b.z1)/2);});});}
+    Z.gmeshes.forEach((m,j)=>{const b=g[j];m.visible=!!b;if(!b)return;m.scale.set(Math.max(.02,b.x1-b.x0-.02),Math.max(.02,b.y1-b.y0-.02),Math.max(.02,b.z1-b.z0-.02));/* a hair smaller: no flicker against walls */m.position.set((b.x0+b.x1)/2,(b.y0+b.y1)/2,(b.z0+b.z1)/2);});});}
 
 /* ------------------------------------------------------------------ physics */
 const OUT={top:999,y0:-99,climb:false,edge:true};

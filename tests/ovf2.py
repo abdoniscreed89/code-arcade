@@ -20,7 +20,7 @@ with sync_playwright() as p:
             if g in ('cafe','dungeon','robot','spell','bug','art','grid','pj_quiz','pf_memory'):
                 n=pg.evaluate(f"GAMES['{g}'].def.levels.length")
                 pg.evaluate(f"()=>GAMES['{g}'].open({n-1})");pg.wait_for_timeout(140);ck(g+'-Llast')
-        for w in ('quest','quest2','shadow','rune','rift','profile','report'):
+        for w in ('quest','quest2','shadow','rune','rift','spire','profile','report'):
             pg.evaluate(f"()=>APP.show('{w}')");pg.wait_for_timeout(250);ck(w)
         print(W,'overflow:',bad,'errors:',errs,flush=True)
         pg.close()
