@@ -1,1 +1,85 @@
-/* placeholder — district file */
+/* Spire City — District 5: Castle Gates (CSS position, transform & animation) */
+(()=>{
+/* reads where a box really is inside the zone (px, after transforms) */
+const R=(a,s)=>{const e=a.$(s);return e?e.getBoundingClientRect():null;};
+const D={id:'s5',name:'Castle Gates',theme:'castle',topic:'CSS — position, transform & animation',
+ story:["Pip: Hoo! Kai, this is Baron Rust's castle. Look at those walls — smooth as glass!","Kai: A canal, a moat, a locked gate and a keep on a tall rock. He really doesn't want visitors.","Pip: Then we MOVE things with code. Today you'll slide blocks, turn them, lift them — and make them move all by themselves!"],
+ outro:["Pip: Synchronized! The castle flags fly for Spire City again!","Kai: Slide, spin, lift… and a lift that rides by itself. CSS can move castles!","Baron Rust: Grrr! You'll never reach my Sky Observatory. Up in the clouds, only JAVASCRIPT works!"],
+ start:[4,43],startFace:Math.PI/2,sync:[34,5],syncFace:0,hay:[24,10],
+ feathers:[[3,37],[44,36],[41,31],[3,20],[7,5],[38,8],[13,12]],
+ bots:[[2,34,7,34],[19,44,36,44],[4,16,22,16]],
+ map:[],
+ zones:[
+  /* 1 — the plank bridge over the canal: position relative + left */
+  {at:[15.5,38],y:0,w:320,h:224,kind:'plan',face:'w',term:[9,38],lesson:{id:'rzs5_1',concept:'Nudge it: position relative',solid:'.plank',
+   learn:"Every box has a normal place on the page.\n`position: relative;` lets you **nudge** a box away from its normal place.\nThen `left: 100px;` pushes it 100 px away from the left side. Without `position: relative;` the `left` does nothing!",
+   example:'.box {\n  position: relative;\n  left: 100px;\n}',
+   mission:"The plank lies in the wrong spot — it hits the town wall. Slide it over so it lines up with the gap in the wall.",
+   job:"Inside `.plank { }` add `position: relative;` and `left: 224px;`. Then press ⚡ Build it.",
+   starter:'<div class="plank"></div>\n\n<style>\n.plank {\n  width: 64px;\n  height: 100%;\n  background: #c98a4b;\n}\n</style>',
+   answer:'<div class="plank"></div>\n\n<style>\n.plank {\n  width: 64px;\n  height: 100%;\n  background: #c98a4b;\n  position: relative;\n  left: 224px;\n}\n</style>',
+   hints:["The plank needs TWO new lines inside `.plank { }`.","First `position: relative;` — then `left: 224px;` pushes it along.","Add these two lines above the `}`: `position: relative;` and `left: 224px;`"],
+   tip:"`relative` means \"move from where you would normally be\". The box next to it doesn't move at all.",
+   checks:[[a=>!!a.$('.plank'),"Keep the `<div class=\"plank\"></div>` tag."],
+     [a=>{const r=R(a,'.plank');return r&&r.left>=208&&r.left<=256;},"The plank must slide over to the gap. Add `position: relative;` AND `left: 224px;` inside `.plank { }`."],
+     [a=>{const r=R(a,'.plank');return r&&r.height>=200;},"Keep `height: 100%;` so the plank reaches across the canal."]]}},
+  /* 2 — ledges up the bridge tower: position absolute + left/top */
+  {at:[30,36],y:4,w:256,h:128,kind:'side',face:'s',depth:2,term:[30,39],lesson:{id:'rzs5_2',concept:'Put it exactly: position absolute',solid:'.ledge',
+   learn:"`position: absolute;` takes a box out of the normal line-up. You tell it **exactly** where to go.\n`top` says how far down from the top edge. `left` says how far in from the left edge.\nThe four ledges already have their `top`. They are all stuck in one pile at `left: 0` — give them a `left` each!",
+   example:'.ledge {\n  position: absolute;\n  top: 32px;\n  left: 64px;\n}',
+   mission:"The four ledges are piled up in one spot. Spread them out into steps up to the bridge tower.",
+   job:"Give each ledge its own `left`: put `left: 64px;` in `.l2`, `left: 128px;` in `.l3` and `left: 192px;` in `.l4`.",
+   starter:'<div class="ledge l1"></div>\n<div class="ledge l2"></div>\n<div class="ledge l3"></div>\n<div class="ledge l4"></div>\n\n<style>\n.ledge {\n  position: absolute;\n  width: 64px;\n  height: 16px;\n  background: #f472b6;\n}\n.l1 { top: 96px; left: 0px; }\n.l2 { top: 64px; }\n.l3 { top: 32px; }\n.l4 { top: 0px; }\n</style>',
+   answer:'<div class="ledge l1"></div>\n<div class="ledge l2"></div>\n<div class="ledge l3"></div>\n<div class="ledge l4"></div>\n\n<style>\n.ledge {\n  position: absolute;\n  width: 64px;\n  height: 16px;\n  background: #f472b6;\n}\n.l1 { top: 96px; left: 0px; }\n.l2 { top: 64px; left: 64px; }\n.l3 { top: 32px; left: 128px; }\n.l4 { top: 0px; left: 192px; }\n</style>',
+   hints:["Look at `.l1` — it has a `top` AND a `left`. Do the same for the others.","Each ledge goes 64 more to the right: 64, 128, 192.","`.l2 { top: 64px; left: 64px; }` `.l3 { top: 32px; left: 128px; }` `.l4 { top: 0px; left: 192px; }`"],
+   tip:"With `absolute`, boxes can even sit on top of each other — that's how games stack sprites.",
+   checks:[[a=>a.$$('.ledge').length===4,"Keep all 4 ledges: `l1`, `l2`, `l3` and `l4`."],
+     [a=>{const r=R(a,'.l2');return r&&Math.abs(r.left-64)<=12;},"Put `left: 64px;` inside `.l2 { }`."],
+     [a=>{const r=R(a,'.l3');return r&&Math.abs(r.left-128)<=12;},"Put `left: 128px;` inside `.l3 { }`."],
+     [a=>{const r=R(a,'.l4');return r&&Math.abs(r.left-192)<=12;},"Put `left: 192px;` inside `.l4 { }`."],
+     [a=>[[1,96],[2,64],[3,32],[4,0]].every(([i,t])=>{const r=R(a,'.l'+i);return r&&Math.abs(r.top-t)<=4;}),"Keep the `top` numbers as they were: 96, 64, 32 and 0."]]}},
+  /* 3 — the swing bridge over the moat: transform rotate */
+  {at:[30,26],y:4,w:320,h:256,kind:'plan',face:'s',term:[30,32],lesson:{id:'rzs5_3',concept:'Turn it: transform rotate',solid:'.bridge',
+   learn:"`transform: rotate(90deg);` **turns** a box. `90deg` is a quarter turn, the way a clock hand goes.\n`transform-origin` is the pin the box turns around. This bridge is pinned at its **right** end, like a gate on a hinge.",
+   example:'.door {\n  transform-origin: right center;\n  transform: rotate(90deg);\n}',
+   mission:"The swing bridge lies along the moat bank. Swing it a quarter turn so it reaches across to the castle.",
+   job:"Add `transform: rotate(90deg);` inside `.bridge { }`. The bridge will swing over the moat.",
+   starter:'<div class="bridge"></div>\n\n<style>\n.bridge {\n  position: absolute;\n  left: 0px;\n  top: 192px;\n  width: 256px;\n  height: 64px;\n  background: #a16207;\n  transform-origin: right center;\n}\n</style>',
+   answer:'<div class="bridge"></div>\n\n<style>\n.bridge {\n  position: absolute;\n  left: 0px;\n  top: 192px;\n  width: 256px;\n  height: 64px;\n  background: #a16207;\n  transform-origin: right center;\n  transform: rotate(90deg);\n}\n</style>',
+   hints:["The new line starts with `transform:`.","Inside the brackets goes the turn: `rotate(90deg)`.","Add `transform: rotate(90deg);` on a new line above the `}`."],
+   tip:"`deg` means degrees. 360deg is a whole spin — try it and the bridge ends up where it started!",
+   checks:[[a=>!!a.$('.bridge'),"Keep the `<div class=\"bridge\"></div>` tag."],
+     [a=>{const r=R(a,'.bridge');return r&&r.top<=8&&r.bottom>=248&&r.width<=80;},"The bridge must swing across the moat. Add `transform: rotate(90deg);` (90, not -90) inside `.bridge { }`."],
+     [a=>{const r=R(a,'.bridge');return r&&r.left>=208&&r.right<=320;},"Keep `transform-origin: right center;` and `left: 0px;` so the bridge lands at the castle gate."]]}},
+  /* 4 — the portcullis: transform translate */
+  {at:[33.5,17.5],y:7,w:96,h:96,kind:'side',face:'s',depth:1,term:[33,20],lesson:{id:'rzs5_4',concept:'Slide it: transform translate',solid:'.gate',empty:true,
+   learn:"`transform: translateY(-50px);` **slides** a box. `Y` is up and down.\nA minus number slides it UP. A plus number slides it DOWN.\n(`translateX` slides left and right.)",
+   example:'.box {\n  transform: translateY(-50px);\n}',
+   mission:"The iron portcullis blocks the castle gate. Slide it up so Kai can walk under it.",
+   job:"Add `transform: translateY(-64px);` inside `.gate { }`. The gate slides up by 2 metres.",
+   starter:'<div class="gate"></div>\n\n<style>\n.gate {\n  width: 96px;\n  height: 96px;\n  background-color: #64748b;\n  background-image: repeating-linear-gradient(90deg, #475569 0 8px, transparent 8px 24px);\n}\n</style>',
+   answer:'<div class="gate"></div>\n\n<style>\n.gate {\n  width: 96px;\n  height: 96px;\n  background-color: #64748b;\n  background-image: repeating-linear-gradient(90deg, #475569 0 8px, transparent 8px 24px);\n  transform: translateY(-64px);\n}\n</style>',
+   hints:["The new line starts with `transform:`.","Up needs a minus number: `translateY(-64px)`.","Add `transform: translateY(-64px);` above the `}`."],
+   tip:"`translate` is super fast for the browser. Games and apps use it for things that move.",
+   checks:[[a=>!!a.$('.gate'),"Keep the `<div class=\"gate\"></div>` tag — just slide it."],
+     [a=>{const r=R(a,'.gate');if(!r)return false;const gone=r.right<=0||r.left>=96||r.bottom<=0||r.top>=96;return gone||r.bottom<=34;},"The gate is still too low for Kai. Add `transform: translateY(-64px);` — with the minus sign, so it goes UP."]]}},
+  /* 5 — the keep lift: @keyframes + animation (moves by itself!) */
+  {at:[35,10],y:8.5,w:64,h:272,kind:'side',face:'s',depth:2,term:[35,13],lesson:{id:'rzs5_5',concept:'Make it move: animation',solid:'.lift',anim:true,period:5,
+   learn:"`@keyframes` is a little movie: `from` is the first picture, `to` is the last one.\n`animation: rise 5s infinite alternate;` plays the movie called `rise`. It takes `5s` (5 seconds), plays forever (`infinite`), and goes back and forth (`alternate`).\nThe lift uses `translateY` from the last gate!",
+   example:'@keyframes hop {\n  from { transform: translateY(0px); }\n  to { transform: translateY(-40px); }\n}\n.ball { animation: hop 1s infinite alternate; }',
+   mission:"The keep stands on a smooth rock. Make the lift ride up to the top and back down, all by itself.",
+   job:"In `to { }` change `translateY(0px)` to `translateY(-256px)`. Then add `animation: rise 5s infinite alternate;` inside `.lift { }`.",
+   starter:'<div class="lift"></div>\n\n<style>\n.lift {\n  position: absolute;\n  left: 0px;\n  bottom: 0px;\n  width: 64px;\n  height: 10px;\n  background: #e11d48;\n}\n@keyframes rise {\n  from { transform: translateY(0px); }\n  to { transform: translateY(0px); }\n}\n</style>',
+   answer:'<div class="lift"></div>\n\n<style>\n.lift {\n  position: absolute;\n  left: 0px;\n  bottom: 0px;\n  width: 64px;\n  height: 10px;\n  background: #e11d48;\n  animation: rise 5s infinite alternate;\n}\n@keyframes rise {\n  from { transform: translateY(0px); }\n  to { transform: translateY(-256px); }\n}\n</style>',
+   hints:["Two jobs: fix the `to` line, then add the `animation` line.","`to { transform: translateY(-256px); }` — minus means UP, 256px is 8 metres.","Inside `.lift { }` add `animation: rise 5s infinite alternate;`"],
+   tip:"Ride it! Step on when it's down, wait, and step off at the top. Real lifts in games are often just animations like this.",
+   checks:[[a=>{const e=a.$('.lift');return !!e&&e.getAnimations().length>0;},"The lift isn't moving yet. Add `animation: rise 5s infinite alternate;` inside `.lift { }`."],
+     [a=>{const an=a.$('.lift').getAnimations()[0];return an.effect.getComputedTiming().iterations===Infinity;},"The lift must keep going. Put the word `infinite` in the animation line."],
+     [a=>{const d=+a.$('.lift').getAnimations()[0].effect.getComputedTiming().duration;return d>=2000&&d<=12000;},"Use `5s` in the animation line — not too fast, not too slow."],
+     [a=>{const e=a.$('.lift'),an=e.getAnimations()[0],d=+an.effect.getComputedTiming().duration,keep=an.currentTime;an.pause();let lo=1e9,hi=-1e9,end=0;
+       for(let k=0;k<=20;k++){an.currentTime=k*d/10;const y=e.getBoundingClientRect().top;lo=Math.min(lo,y);hi=Math.max(hi,y);}
+       an.currentTime=d*.97;end=e.getBoundingClientRect().top;an.currentTime=keep;an.play();a._lift={lo,hi,end};return lo>=-2&&lo<=18;},"The lift must stop right at the top of the rock. In `to { }` use `translateY(-256px)`."],
+     [a=>a._lift.hi>=250&&(a._lift.end>=200||/alternate/.test(a.css(a.$('.lift'),'animationDirection'))),"The lift must come back down for you. Add the word `alternate` to the animation line."]]}}
+ ]};
+SPIRE_DATA.districts.push(D);
+})();
