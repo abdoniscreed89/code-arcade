@@ -584,3 +584,4 @@ iframe.fullprev{width:100%;height:65vh;border:3px solid var(--ink);border-radius
 .spDist.done{outline:3px solid #22c55e}
 @media(max-width:520px){.spHero{flex-direction:column;align-items:flex-start}}
 .spTp{display:none}@media (pointer:coarse){.spTp{display:flex}.spKb{display:none}}
+.rift.coding .rfHack{display:none!important}
