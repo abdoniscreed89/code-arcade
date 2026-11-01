@@ -21864,7 +21864,9 @@ function parseDungeon(D){
     else if(c>='1'&&c<='9'){P.anchors[+c-1]={x,y};g[y][x]='.';}
     if(g[y][x]==='.'&&c!=='.')P._fill=(P._fill||[]).concat([[x,y]]);}
   /* things placed on grass keep grass under them */
-  (P._fill||[]).forEach(([x,y])=>{let n=0;[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{if((g[y+dy]||[])[x+dx]===',')n++;});if(n>=2)g[y][x]=',';});
+  (P._fill||[]).forEach(([x,y])=>{const cnt={};[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{const t=(g[y+dy]||[])[x+dx];if(t===','||t==='~'||t==='_')cnt[t]=(cnt[t]||0)+1;});
+    /* a flying bat over water/pits keeps the hole under it; anything on grass keeps the grass */
+    const isBat=P.enemies.some(e=>e.kind==='bat'&&Math.floor(e.x/TS)===x&&Math.floor(e.y/TS)===y);for(const t of['~','_'])if(isBat&&cnt[t]>=2){g[y][x]=t;return;}if((cnt[',']||0)>=2)g[y][x]=',';});
   return P;}
 function mkEnemy(c,x,y){const k={s:'slime',b:'bat',x:'skel',a:'turret',X:'boss'}[c];
   return{kind:k,x,y,ox:x,oy:y,hp:{slime:2,bat:1,skel:3,turret:999,boss:14}[k],max:{slime:2,bat:1,skel:3,turret:999,boss:14}[k],r:{slime:11,bat:9,skel:11,turret:13,boss:24}[k],vx:0,vy:0,t:Math.random()*3,kb:0,alive:true,flash:0,cd:1+Math.random()*1.5};}
@@ -21891,7 +21893,7 @@ async function checkCode(Z,frame,code){const {rects,api}=await layout(Z,frame,co
 
 /* ------------------------------------------------------------------ the world rules (shared by the game and the validator) */
 function world(P,zoneRects){/* zoneRects: [{kind,rects in world px,anim}] */
-  const blocks=[],bridges=[];zoneRects.forEach(z=>z.rects.forEach(r=>(z.kind==='bridge'?bridges:blocks).push({x:r.x,y:r.y,w:r.w,h:r.h,anim:z.anim})));
+  const blocks=[],bridges=[];zoneRects.forEach(z=>z.rects.forEach(r=>(z.kind==='bridge'?bridges:blocks).push({x:r.x,y:r.y,w:r.w,h:r.h,anim:z.anim,key:r.key})));
   const covered=pl=>blocks.some(b=>!b.anim&&pl.x*TS+16>=b.x&&pl.x*TS+16<=b.x+b.w&&pl.y*TS+16>=b.y&&pl.y*TS+16<=b.y+b.h);
   return{blocks,bridges,covered};}
 function roomPlates(P,rx,ry){return P.plates.filter(p=>Math.floor(p.x/RW)===rx&&Math.floor(p.y/RH)===ry);}
@@ -21957,12 +21959,14 @@ function startLevel(id){const L=levelById(id);if(!L)return;mapScr.classList.add(
   if(L.story&&!SV.seenIntro[L.id]){SV.seenIntro[L.id]=1;saveSV();say(L.story);}}
 
 /* ------------------------------------------------------------------ zones → world rects */
-const zoneWorld=Z=>Z.show.map(r=>({x:Z.x*TS+r.x,y:Z.y*TS+r.y,w:r.w,h:r.h,col:r.col,label:r.label}));
-function curWorld(){return world(P,ZONES.map(Z=>({kind:Z.kind,rects:zoneWorld(Z)})));}
+const zoneWorld=Z=>Z.show.map((r,k)=>({x:Z.x*TS+r.x,y:Z.y*TS+r.y,w:r.w,h:r.h,col:r.col,label:r.label,key:Z.i+':'+k}));
+function curWorld(){return world(P,ZONES.map(Z=>({kind:Z.kind,rects:zoneWorld(Z),anim:!!Z.lesson.anim})));}
 let W=null;
 function animZones(dt){ZONES.forEach(Z=>{
   if(Z.ft<1){Z.ft=Math.min(1,Z.ft+dt*3);const e=1-Math.pow(1-Z.ft,3);Z.show=Z.rects.map((r,i)=>{const f=Z.from&&Z.from[i]||{x:r.x+r.w/2,y:r.y+r.h/2,w:0,h:0};return{...r,x:f.x+(r.x-f.x)*e,y:f.y+(r.y-f.y)*e,w:f.w+(r.w-f.w)*e,h:f.h+(r.h-f.h)*e};});}
-  else if(Z.lesson.anim&&Z.frame.contentDocument){try{const rs=readRects(Z,makeApi(Z.frame.contentDocument,Z.frame.contentWindow));if(rs.length===Z.show.length||!Z.show.length){Z.rects=rs;Z.show=rs;}}catch(e){}}});}
+  else if(Z.lesson.anim&&Z.frame.contentDocument){try{const rs=readRects(Z,makeApi(Z.frame.contentDocument,Z.frame.contentWindow));if(rs.length===Z.show.length||!Z.show.length){Z.rects=rs;Z.show=rs;}}catch(e){}}
+  /* the see-through preview of a moving lesson moves too */
+  if(Z.lesson.anim&&activeZone===Z&&Z.ghost&&preview&&preview.contentDocument){try{Z.ghost=readRects(Z,makeApi(preview.contentDocument,preview.contentWindow));}catch(e){}}});}
 
 /* ------------------------------------------------------------------ collision */
 const tileAt=(x,y)=>(P.g[y]&&P.g[y][x])||'#';
@@ -21981,8 +21985,14 @@ function move(o,dx,dy,w,h,forFoe){let hit=false;if(dx){if(!hits(o.x+dx,o.y,w,h,f
 const DIRV={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
 function step(dt){const h=hero;timeIn+=dt;
   const prevW=W;W=curWorld();
-  /* moving bridges carry Rowan */
-  if(prevW&&!h.fall){for(let i=0;i<W.bridges.length&&i<prevW.bridges.length;i++){const a=prevW.bridges[i],b=W.bridges[i];if(h.x>=a.x&&h.x<=a.x+a.w&&h.y>=a.y&&h.y<=a.y+a.h){h.x+=b.x-a.x;h.y+=b.y-a.y;break;}}}
+  /* moving bridges carry Rowan (only while he is over a hole — on solid ground a bridge just slides under him);
+     bridges are matched by zone + index so another zone changing its count never makes him jump */
+  if(prevW&&!h.fall&&HOLE.has(tileAt(Math.floor(h.x/TS),Math.floor(h.y/TS)))){const old=new Map(prevW.bridges.filter(a=>a.anim).map(a=>[a.key,a]));
+    for(const b of W.bridges){const a=b.anim&&old.get(b.key);if(a&&(a.x!==b.x||a.y!==b.y)&&h.x>=a.x-1&&h.x<=a.x+a.w+1&&h.y>=a.y-1&&h.y<=a.y+a.h+1){h.x+=b.x-a.x;h.y+=b.y-a.y;break;}}}
+  /* moving blocks push Rowan instead of trapping him */
+  if(prevW&&!h.fall){const old=new Map(prevW.blocks.filter(a=>a.anim).map(a=>[a.key,a]));
+    for(const b of W.blocks){const a=b.anim&&old.get(b.key);if(!a||(a.x===b.x&&a.y===b.y))continue;
+      if(h.x+HERO.w/2>b.x&&h.x-HERO.w/2<b.x+b.w&&h.y+HERO.h/2>b.y&&h.y-HERO.h/2<b.y+b.h){const nx=h.x+b.x-a.x,ny=h.y+b.y-a.y,tx=Math.floor(nx/TS),ty=Math.floor(ny/TS);if(!solidTile(tx,ty)){h.x=nx;h.y=ny;}}}}
   if(h.inv>0)h.inv-=dt;if(h.swing>0)h.swing-=dt;
   if(h.fall>0){h.fall-=dt;if(h.fall<=0){h.x=entry.x;h.y=entry.y;hurt(1,true);}pressed={};return;}
   let ix=(keys.right?1:0)-(keys.left?1:0)+stick.x,iy=(keys.down?1:0)-(keys.up?1:0)+stick.y;const il=Math.hypot(ix,iy);if(il>1){ix/=il;iy/=il;}
@@ -22145,7 +22155,7 @@ function flash(){const f=$w('.rfFlash');f.classList.remove('go');void f.offsetWi
 /* ------------------------------------------------------------------ HUD, banner, dialog */
 function hud(){if(!LV)return;const h=hero,mx=SV.maxHp||6;let s='';for(let i=0;i<mx;i+=2)s+=h.hp>=i+2?'❤️':h.hp===i+1?'💔':'🤍';$w('.swHearts').textContent=s;$w('.swGems').textContent='💎 '+h.gems;$w('.swKeys').textContent='🗝️ '+h.keys;}
 let bT;function banner(t){const b=$w('.rfBanner');b.textContent=t;b.classList.add('show');clearTimeout(bT);bT=setTimeout(()=>b.classList.remove('show'),1700);}
-function say(lines,done){const was=mode;mode='dialog';const box=$w('.rfDialog');dlg={lines:[].concat(lines),i:0,done,was};box.classList.remove('hidden');showLine();}
+function say(lines,done){if(!lines||!lines.length){done&&done();return;}const was=mode;mode='dialog';const box=$w('.rfDialog');dlg={lines:[].concat(lines),i:0,done,was};box.classList.remove('hidden');showLine();}
 function showLine(){const raw=dlg.lines[dlg.i];const m=/^([A-Z][\w .'-]{1,20}):\s+(.*)$/s.exec(raw);const who=m?m[1]:'',txt=m?m[2]:raw;
   $w('.rfWho').textContent=who;$w('.rfWho').style.display=who?'':'none';$w('.rfFace').textContent=({Rowan:'🛡️',Spark:'🧚','Hex King':'👑'})[who]||'';
   const el=$w('.rfText');let n=0;clearInterval(dlg.tm);el.textContent='';dlg.typing=true;dlg.cur=txt;dlg.tm=setInterval(()=>{n+=2;el.textContent=txt.slice(0,n);if(n>=txt.length){clearInterval(dlg.tm);dlg.typing=false;}},16);}
@@ -22164,7 +22174,7 @@ function openPanel(Z){if(mode!=='play')return;mode='code';activeZone=Z;keys={};s
       <div class="st-drawer"><div class="feedback"></div><div class="hintbox"></div></div></div>
     <div class="rfPact"><button class="btn" data-p="hint">💡 Hint</button><button class="btn" data-p="tip">✨ Tip</button><button class="btn" data-p="answer">👁 Answer</button><button class="btn ghost" data-p="reset">↺ Reset</button><button class="btn primary big" data-p="apply">⚡ Cast the rune</button></div>`;
   const ed=$('textarea',pnl),fb=(t,h)=>{const f=$('.feedback',pnl);f.className='feedback '+(t||'');f.innerHTML=h||'';},hb=$('.hintbox',pnl);
-  ed.value=SV.code[Z.id]||(Z.solved?L.answer:L.starter);TRACK.open('sword',L.id);
+  ed.value=SV.code[Z.id]||(Z.solved?L.answer:L.starter);ed.scrollTop=0;setTimeout(()=>{ed.scrollTop=0;},80);TRACK.open('sword',L.id);
   const live=debounce(async()=>{const code=ed.value;SV.code[Z.id]=code;saveSV();const r=await layout(Z,preview,code);if(PZ&&PZ.Z===Z)Z.ghost=r.rects;},260);
   wireEditor(ed,live,()=>apply());addSnips($('.snips',pnl),ed,live,L.js?['(',')','{','}',';','"','=','+','<','>','.','`','$']:undefined);
   const hintBtn=$('[data-p=hint]',pnl),lab=()=>hintBtn.textContent=`💡 Hint ${Math.min(PZ.hints,L.hints.length)}/${L.hints.length}`;lab();
@@ -22353,19 +22363,590 @@ SWORD_DATA.dungeons.push(D);
 })();
 </script>
 <script>
-/* placeholder — dungeon file */
+/* Sword & Script — Dungeon 2: Coral Grotto (CSS — sizes and spacing) */
+(()=>{
+/* check helpers: the boxes the browser drew, and "is this point inside one of them?" */
+const R=(a,s)=>a.$$(s).map(e=>e.getBoundingClientRect());
+const inside=(rs,x,y)=>rs.some(r=>x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom);
+/* stacked pieces touch each other and reach from the top to the bottom (h px) */
+const column=(rs,h)=>{const s=[...rs].sort((p,q)=>p.top-q.top);if(!s.length||s[0].top>2)return false;let y=s[0].bottom;for(const r of s.slice(1)){if(r.top>y+1)return false;y=Math.max(y,r.bottom);}return y>=h-2;};
+const D={id:'k2',name:'Coral Grotto',theme:'coral',topic:'CSS — sizes and spacing',
+ story:["Spark: Brr! The Coral Grotto. Everything down here is wet and wobbly!","Rowan: The second crystal is somewhere under all this water.","Spark: These altars don't care about tags. They care about SIZE — how wide, how tall, how much space. Let's go measure!"],
+ outro:["Spark: Crystal number two! It sparkles like the sea!","Rowan: Width, height, margin, padding… now I can make any box the right size.","Hex King: Clever little knight. But my Bramble Maze is full of thorns. Let's see you line THOSE up!"],
+ boss:{name:'Crab Tyrant',color:'#f97316'},
+ map:[
+  "######################a######################",
+  "#T...........T##...._____....##..b........gC#",
+  "#.............##.g.._____.....L.............#",
+  "#..#.......#..##...._____....##~~~~~~~~~~~~~#",
+  "#......X......##...._____..x.##~~~~~~~~~~~~~#",
+  "#..................._____....##~~~~~~~~~~~~~#",
+  "#.............##...._____....##~~~~~~~~~~~~~#",
+  "#..#.......#..##...._____.R..##.............#",
+  "#.............##...._____....##....R....b...#",
+  "#T...........T##C..._____...T##T..........pp#",
+  "#######Z##############a##############.#######",
+  "#######.#############################D#######",
+  "#~~.........~~##Cp..........p##g...........C#",
+  "#~.....H.....~##p............##.............#",
+  "#.............##...#..s..#...########.#######",
+  "#.............##.............########..P#####",
+  "#....T...T....##..x.....b.x..########.#######",
+  "#......E......##.............##...........b.#",
+  "#.............##...#..s..#...D....R.........#",
+  "#.............##.............##..........s..#",
+  "#~~.........~~##............p##T...........T#",
+  "######################.##############.#######",
+  "######################D##############.#######",
+  "#~~B,,,~~~~~BC##T...........T##............g#",
+  "#~CB,,,~~~~~,,##.............##.............#",
+  "#B,B,,,~~~~~,,##.........s...#a........~~~..#",
+  "#,,,,R,~~~~~,,##...R.........##.............#",
+  "#,,,,,,~~~~~,,...............##..~~~........#",
+  "#,S,,,,~~~~~,,##.....P.P.....##...........p.#",
+  "#~,,s,,~~~~~,,##..........~~~##.....x...pK..a",
+  "#~~,,s,~~~~~,,##.b........~~.##........s..p.#",
+  "#pp,,,g~~~~~,g##gp..........C##C............#",
+  "##################################a##########"],
+ zones:[
+  {kind:'bridge',at:[7,27],w:5,h:1,lesson:{id:'rzk2_1',concept:'width — how wide',solid:'.plank',
+   learn:"`width` sets how **wide** a box is. `px` means pixels — the tiny dots on a screen.\nHere one floor tile is **32px**. The river is 5 tiles wide, so the plank must be 5 × 32 = **160px** wide.",
+   example:".plank { width: 64px; }",
+   mission:"The plank is only 1 tile long, but the river is 5 tiles wide. Make the plank long enough to reach the other side.",
+   job:"Change `width: 32px;` to `width: 160px;`. Then the plank reaches all the way across the river!",
+   starter:"<div class=\"plank\"></div>\n\n<style>\n  .plank {\n    width: 32px;\n    height: 32px;\n    background: #c98a4b;\n  }\n</style>",
+   answer:"<div class=\"plank\"></div>\n\n<style>\n  .plank {\n    width: 160px;\n    height: 32px;\n    background: #c98a4b;\n  }\n</style>",
+   hints:["Find `width: 32px;` inside `.plank { }`.","The river is 5 tiles. 5 × 32px = 160px.","Change it to `width: 160px;`"],
+   tip:"Every box on a web page has a width — buttons, pictures, menus. You size them just like this plank!",
+   checks:[[a=>!!a.$('.plank'),"Keep the `<div class=\"plank\"></div>` tag."],
+    [a=>{const r=a.$('.plank').getBoundingClientRect();return r.top<=2&&r.height>=30;},"Keep `height: 32px;` so Rowan has room to stand on the plank."],
+    [a=>{const r=a.$('.plank').getBoundingClientRect();return r.left<=2&&r.right>=158;},"The plank is too short. Make it `width: 160px;` (5 tiles × 32px)."]]}},
+  {kind:'block',at:[21,25],w:3,h:4,lesson:{id:'rzk2_2',concept:'% sizes — height: 100%',solid:'.pillar',
+   learn:"Sizes can be in **%** (percent). `100%` means **as big as the box it sits in**. `50%` means half as big.\nThese pillars sit in a box that is 4 tiles tall. With `height: 100%;` they grow all the way to the bottom!",
+   example:".pillar { height: 50%; }",
+   mission:"Two glowing switches are at the bottom. Grow both stone pillars down until they press the switches.",
+   job:"Inside `.pillar { }` change `height: 32px;` to `height: 100%;`. Both pillars grow down onto the switches.",
+   starter:"<div class=\"pillar a\"></div>\n<div class=\"pillar b\"></div>\n\n<style>\n  .pillar {\n    position: absolute;\n    top: 0;\n    width: 32px;\n    height: 32px;\n    background: #9fb8c4;\n  }\n  .a { left: 0; }\n  .b { left: 64px; }\n</style>",
+   answer:"<div class=\"pillar a\"></div>\n<div class=\"pillar b\"></div>\n\n<style>\n  .pillar {\n    position: absolute;\n    top: 0;\n    width: 32px;\n    height: 100%;\n    background: #9fb8c4;\n  }\n  .a { left: 0; }\n  .b { left: 64px; }\n</style>",
+   hints:["Find `height: 32px;` inside `.pillar { }`.","Swap the `32px` for a percent. 100% = the whole way down.","Change it to `height: 100%;`"],
+   tip:"`width: 100%;` is one of the most used lines on the web — it makes a box exactly as wide as the page or box around it.",
+   checks:[[a=>a.$$('.pillar').length>=2,"Keep both pillars: `<div class=\"pillar a\">` and `<div class=\"pillar b\">`."],
+    [a=>a.rules().some(r=>/pillar/.test(r.selectorText||'')&&/%/.test(r.style.height||'')),"Use a percent size: `height: 100%;` inside `.pillar { }`."],
+    [a=>R(a,'.pillar').every(r=>r.top<=2&&r.bottom>=114),"The pillars are not tall enough to reach the switches. Use `height: 100%;`."],
+    [a=>{const rs=R(a,'.pillar');return inside(rs,16,112)&&inside(rs,80,112);},"Keep `.a { left: 0; }` and `.b { left: 64px; }` so each pillar stays above its switch."]]}},
+  {kind:'block',at:[37,15],w:3,h:1,lesson:{id:'rzk2_3',concept:'margin — space outside',solid:'.block',
+   learn:"`margin` is empty space **outside** a box. It pushes the box away from things.\n`margin-left: 64px;` puts 64px of space on the box's left side — so the box slides 2 tiles to the right.",
+   example:".block { margin-left: 32px; }",
+   mission:"A stone block is stuck in the narrow passage! Push it 2 tiles to the right, into the little hole in the wall where the switch is.",
+   job:"Inside `.block { }` add `margin-left: 64px;`. The block slides 2 tiles right onto the switch.",
+   starter:"<div class=\"block\"></div>\n\n<style>\n  .block {\n    width: 32px;\n    height: 32px;\n    background: #9fb8c4;\n  }\n</style>",
+   answer:"<div class=\"block\"></div>\n\n<style>\n  .block {\n    width: 32px;\n    height: 32px;\n    margin-left: 64px;\n    background: #9fb8c4;\n  }\n</style>",
+   hints:["Add a new line inside `.block { }`, under `height: 32px;`.","2 tiles × 32px = 64px of space on the left.","Type `margin-left: 64px;`"],
+   tip:"`margin` keeps things from bumping into each other — like the space between pictures in a photo album.",
+   checks:[[a=>!!a.$('.block'),"Keep the `<div class=\"block\"></div>` tag."],
+    [a=>{const r=a.$('.block').getBoundingClientRect();return r.top<=2&&r.height>=30;},"Keep the block on the floor: keep `height: 32px;` and don't add `margin-top`."],
+    [a=>a.$('.block').getBoundingClientRect().left>=48,"Not far enough — the passage is still blocked. Use `margin-left: 64px;` (2 tiles × 32px)."],
+    [a=>{const r=a.$('.block').getBoundingClientRect();return r.left<=80&&r.right>=80;},"Too far! The block slid past the switch. Use `margin-left: 64px;`."]]}},
+  {kind:'bridge',at:[37,3],w:1,h:4,lesson:{id:'rzk2_4',concept:'padding — space inside',solid:'.stone',
+   learn:"`padding` is space **inside** a box, between its edge and its stuff. More padding makes the box **bigger**.\nThese 4 stones are totally flat — 0px tall! `padding: 16px;` adds 16px at the top AND 16px at the bottom: 16 + 16 = **32px** tall.",
+   example:".button { padding: 10px; }",
+   mission:"Four flat stepping stones lie under the water. Puff them up with padding so they make a path across.",
+   job:"Inside `.stone { }` change `padding: 0;` to `padding: 16px;`. Each stone grows to 32px tall.",
+   starter:"<div class=\"stone\"></div>\n<div class=\"stone\"></div>\n<div class=\"stone\"></div>\n<div class=\"stone\"></div>\n\n<style>\n  .stone {\n    width: 32px;\n    padding: 0;\n    background: #7dd3c0;\n  }\n</style>",
+   answer:"<div class=\"stone\"></div>\n<div class=\"stone\"></div>\n<div class=\"stone\"></div>\n<div class=\"stone\"></div>\n\n<style>\n  .stone {\n    width: 32px;\n    padding: 16px;\n    background: #7dd3c0;\n  }\n</style>",
+   hints:["Find `padding: 0;` inside `.stone { }`.","16px on top + 16px on the bottom = 32px, one tile.","Change it to `padding: 16px;`"],
+   tip:"Buttons look nicer with padding — it gives the words room to breathe inside the button.",
+   checks:[[a=>a.$$('.stone').length>=4,"Keep all 4 `<div class=\"stone\"></div>` tags."],
+    [a=>a.$$('.stone').every(e=>parseFloat(a.css(e,'paddingTop'))>=14&&parseFloat(a.css(e,'paddingBottom'))>=14),"Use padding to make the stones tall: `padding: 16px;` inside `.stone { }`."],
+    [a=>R(a,'.stone').every(r=>r.left<=2&&r.width>=30&&r.height>=30),"Each stone must be 32px wide and 32px tall. Keep `width: 32px;` and use `padding: 16px;`."],
+    [a=>column(R(a,'.stone'),128),"The stones must touch each other all the way across. Don't add `margin` between them."]]}},
+  {kind:'bridge',at:[20,5],w:5,h:1,lesson:{id:'rzk2_5',concept:'box-sizing — what counts in the size',solid:'.plank',
+   learn:"A box is made of its **width** + **padding** + **border**. `box-sizing` decides how they add up.\n`border-box` squeezes padding and border INSIDE the width — so this plank stays 96px.\n`content-box` ADDS them on the outside: 96 + 16 + 16 + 16 + 16 = **160px**!",
+   example:".box { box-sizing: content-box; }",
+   mission:"The plank is too short to cross the pit — and arrows are flying! Let the padding and the borders add on to the plank's size.",
+   job:"Change `box-sizing: border-box;` to `box-sizing: content-box;`. Now the padding and borders get added on: 96 + 32 + 32 = 160px. Across!",
+   starter:"<div class=\"plank\"></div>\n\n<style>\n  .plank {\n    box-sizing: border-box;\n    width: 96px;\n    height: 32px;\n    padding: 0 16px;\n    border-left: 16px solid #8b5a2b;\n    border-right: 16px solid #8b5a2b;\n    background: #c98a4b;\n  }\n</style>",
+   answer:"<div class=\"plank\"></div>\n\n<style>\n  .plank {\n    box-sizing: content-box;\n    width: 96px;\n    height: 32px;\n    padding: 0 16px;\n    border-left: 16px solid #8b5a2b;\n    border-right: 16px solid #8b5a2b;\n    background: #c98a4b;\n  }\n</style>",
+   hints:["Look at the first line inside `.plank { }`.","`content-box` adds the padding (16 + 16) and the borders (16 + 16) on top of the 96px width.","Change it to `box-sizing: content-box;`"],
+   tip:"Most web builders put `* { box-sizing: border-box; }` at the top of their CSS, so a 100px box is always 100px. Now you know why!",
+   checks:[[a=>!!a.$('.plank'),"Keep the `<div class=\"plank\"></div>` tag."],
+    [a=>a.css(a.$('.plank'),'boxSizing')==='content-box',"Change `box-sizing: border-box;` to `box-sizing: content-box;`."],
+    [a=>{const r=a.$('.plank').getBoundingClientRect();return r.top<=2&&r.height>=30;},"Keep `height: 32px;` so Rowan can stand on the plank."],
+    [a=>{const r=a.$('.plank').getBoundingClientRect();return r.left<=2&&r.right>=158;},"The plank must be 160px long in all. Keep `width: 96px;`, `padding: 0 16px;` and both 16px borders."]]}}
+ ]};
+SWORD_DATA.dungeons.push(D);
+})();
 </script>
 <script>
-/* placeholder — dungeon file */
+/* Sword & Script — Dungeon 3: Bramble Maze (Flexbox — line things up) */
+(()=>{
+/* check helpers: the boxes the browser drew, and "is this point inside one of them?" */
+const R=(a,s)=>a.$$(s).map(e=>e.getBoundingClientRect());
+const inside=(rs,x,y)=>rs.some(r=>x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom);
+const isFlex=(a,s)=>/flex/.test(a.css(a.$(s),'display'));
+/* stacked pieces touch each other and reach from the top to the bottom (h px) */
+const column=(rs,h)=>{const s=[...rs].sort((p,q)=>p.top-q.top);if(!s.length||s[0].top>2)return false;let y=s[0].bottom;for(const r of s.slice(1)){if(r.top>y+1)return false;y=Math.max(y,r.bottom);}return y>=h-2;};
+const D={id:'k3',name:'Bramble Maze',theme:'bramble',topic:'Flexbox — line things up',
+ story:["Spark: Achoo! Pollen everywhere. Welcome to the Bramble Maze.","Rowan: Hedges, thorns, hedges… which way do I go?","Spark: These altars speak Flexbox. It lines boxes up in rows and columns. Put things in line and the maze opens up!"],
+ outro:["Spark: Crystal number three! We're halfway there, Rowan!","Rowan: Rows, columns, gaps and growing planks. Flexbox is like magic glue.","Hex King: Halfway is nowhere, knight. Tick… tock… my Clockwork Keep is waiting for you."],
+ boss:{name:'Thornback Troll',color:'#be123c'},
+ map:[
+  "#######a#####################################",
+  "#C,,,_____,,BB##C,,,,,,,,,,,,##,,,,,,,,,,,,C#",
+  "#,,,,_____,,x,##,,,,,,,,s,,,,..,,,,,,s,,,b,,#",
+  "#,,,,_____,,,,##,,,R,,,,,,,,,##,,,,,,,,,,,,,#",
+  "#,,,,_____,,b,##,,,,,,,,,,,,,##,,,,,,,,,,,,,#",
+  "#,,,,_____,,,,##~~~~~~~~~~~~~#######,,,######",
+  "#,,,,_____,R,,##~~~~~~~~~~~~~##,,,,,,,,,,,,,#",
+  "#g,,,_____,,,,##,,,,,,,,,,,,,##,,,R,,,,,,x,,#",
+  "#,,,,_____,,,,.L,,x,,,,##,b,B##p,,,,,,,,,,,,#",
+  "#,,,,_____,,,,##,,,,,,g,,,,BC##BB,,,,,,,,,,g#",
+  "###.###a#############################.#######",
+  "###.#################################.#######",
+  "#T,,,,,,,,,,,T##C,,,,,,,,,,BB##CB,,,,,,,,,,g#",
+  "#,,,,,,,,,,,,,##,,#,,,s,,,,x,##B,,,,,,,,,,,,#",
+  "#,,,,,,,,,,,,,##,x#,,,,,,,,,,##~~~~~~~~~~~~~#",
+  "#,,,B,,,,,B,,,##,,#,####,,#,,##~~~~~~~~~~~~~#",
+  "#,,,,,,X,,,,,,##,,#,,,,s,,#,,##~~~~~~~~~~~~~#",
+  "#,,,B,,,,,B,,,##,,#,,,,,p,#,,##~~~~~~~~~~~~~#",
+  "#,,,,,,,,,,,,,##,,,,,####,#,,D.,,,,,,,,,,,,,#",
+  "#,,,,,,,,,,,,,##,,,,,,,,,,#,,##,,,R,,,,,bs,,#",
+  "#T,,,,,,,,,,,T##g,,,,b,,,,,,s##,,,,,,,,,,,pp#",
+  "#######Z##############.##############.#######",
+  "#######.##############D##############.#######",
+  "#BB,,,,,,,,,BB##C,,,,,,,,,,,g##C,#,,,,,,#,,,#",
+  "#B,,,,,H,,,,,B######,,,,,######,,#,,,,,g#,K,#",
+  "#,,,,,,,,,,,,,##,,,,,PPP,,,,,##,,#,,,#,,#,,,a",
+  "#,,,,,,,,,,,,,##,,,,,,,,,,,,,##,,#,,,#,,#,,,#",
+  "#,,,,T,,,T,,,,##,,R,,,,,,s,,,##,,#,,,#,,#,,,#",
+  "#,,,,,,E,,,,,,##,,,,,,,,,,BB,##,,#,,,#,,#,,,#",
+  "#,,,,,,,,,,,,,##,,,,,,,,,,B,,##,,,,,,#,,,,,,#",
+  "#,,,,,,,,,,,,,##,BB,,,S,,,,BB#a,,,,x,#,,,,s,#",
+  "#BB,,,,,,,,,BB##p,,,,,,,,,,,C##,,,,,,#B,,,,p#",
+  "#############################################"],
+ zones:[
+  {kind:'block',at:[21,25],w:3,h:3,lesson:{id:'rzk3_1',concept:'display: flex — make a row',solid:'.block',
+   learn:"Boxes like `<div>` stack **one under another**, like a tower.\nPut `display: flex;` on the box AROUND them, and they line up **side by side** in a row!",
+   example:".row { display: flex; }",
+   mission:"Three switches sit in a row, but the stone blocks are stacked in a tower. Line the blocks up so every switch gets pressed.",
+   job:"Inside `.pile { }` type `display: flex;`. The 3 blocks jump into a row, onto the 3 switches.",
+   starter:"<div class=\"pile\">\n  <div class=\"block\"></div>\n  <div class=\"block\"></div>\n  <div class=\"block\"></div>\n</div>\n\n<style>\n  .pile {\n\n  }\n  .block {\n    width: 32px;\n    height: 32px;\n    background: #a8a29e;\n  }\n</style>",
+   answer:"<div class=\"pile\">\n  <div class=\"block\"></div>\n  <div class=\"block\"></div>\n  <div class=\"block\"></div>\n</div>\n\n<style>\n  .pile {\n    display: flex;\n  }\n  .block {\n    width: 32px;\n    height: 32px;\n    background: #a8a29e;\n  }\n</style>",
+   hints:["The rule goes on the box AROUND the blocks: `.pile { }`.","Click on the empty line inside `.pile { }`.","Type `display: flex;`"],
+   tip:"Menus at the top of websites are often a row of links made with `display: flex;`.",
+   checks:[[a=>a.$$('.pile .block').length>=3,"Keep the 3 `<div class=\"block\"></div>` tags inside the pile."],
+    [a=>isFlex(a,'.pile'),"Type `display: flex;` inside `.pile { }`."],
+    [a=>{const rs=R(a,'.block');return inside(rs,16,16)&&inside(rs,48,16)&&inside(rs,80,16);},"Each block must sit on a switch. Keep the blocks `32px` wide, in one row."]]}},
+  {kind:'bridge',at:[37,14],w:1,h:4,lesson:{id:'rzk3_2',concept:'flex-direction: column',solid:'.stone',
+   learn:"`display: flex;` lines boxes up in a **row** — sideways →. But this pond goes down ↓!\n`flex-direction: column;` turns the row into a **column**: the boxes line up from top to bottom.",
+   example:".stack { display: flex; flex-direction: column; }",
+   mission:"The stepping stones are squished into a thin row at the edge of the pond. Turn the row into a column so the stones reach across.",
+   job:"Inside `.path { }` add `flex-direction: column;`. The 4 stones line up from top to bottom.",
+   starter:"<div class=\"path\">\n  <div class=\"stone\"></div>\n  <div class=\"stone\"></div>\n  <div class=\"stone\"></div>\n  <div class=\"stone\"></div>\n</div>\n\n<style>\n  .path {\n    display: flex;\n  }\n  .stone {\n    width: 32px;\n    height: 32px;\n    background: #c9b48a;\n  }\n</style>",
+   answer:"<div class=\"path\">\n  <div class=\"stone\"></div>\n  <div class=\"stone\"></div>\n  <div class=\"stone\"></div>\n  <div class=\"stone\"></div>\n</div>\n\n<style>\n  .path {\n    display: flex;\n    flex-direction: column;\n  }\n  .stone {\n    width: 32px;\n    height: 32px;\n    background: #c9b48a;\n  }\n</style>",
+   hints:["Keep `display: flex;` — add a new line under it.","A row goes sideways. A column goes down.","Type `flex-direction: column;`"],
+   tip:"On phones, websites often switch from a row to a column so things fit on the narrow screen.",
+   checks:[[a=>a.$$('.path .stone').length>=4,"Keep all 4 `<div class=\"stone\"></div>` tags inside the path."],
+    [a=>isFlex(a,'.path'),"Keep `display: flex;` inside `.path { }`."],
+    [a=>/column/.test(a.css(a.$('.path'),'flexDirection')),"Add `flex-direction: column;` inside `.path { }`."],
+    [a=>R(a,'.stone').every(r=>r.left<=2&&r.width>=30)&&column(R(a,'.stone'),128),"The stones must touch, top to bottom. Keep each stone `32px` wide and `32px` tall."]]}},
+  {kind:'block',at:[36,5],w:3,h:1,lesson:{id:'rzk3_3',concept:'gap — space between',solid:'.thorn',
+   learn:"`gap` puts empty space **between** the boxes in a flex row.\n`gap: 32px;` makes a space as wide as one floor tile — just enough for Rowan to squeeze through. The thorns get squished to make room!",
+   example:".row { display: flex; gap: 10px; }",
+   mission:"Two thorn bushes block the hole in the hedge. Push them apart so a path opens in the middle.",
+   job:"Inside `.hedge { }` add `gap: 32px;`. The thorns move to the sides and a path opens in the middle.",
+   starter:"<div class=\"hedge\">\n  <div class=\"thorn\"></div>\n  <div class=\"thorn\"></div>\n</div>\n\n<style>\n  .hedge {\n    display: flex;\n  }\n  .thorn {\n    width: 48px;\n    height: 32px;\n    background: #6b9e4f;\n  }\n</style>",
+   answer:"<div class=\"hedge\">\n  <div class=\"thorn\"></div>\n  <div class=\"thorn\"></div>\n</div>\n\n<style>\n  .hedge {\n    display: flex;\n    gap: 32px;\n  }\n  .thorn {\n    width: 48px;\n    height: 32px;\n    background: #6b9e4f;\n  }\n</style>",
+   hints:["Keep `display: flex;` — add a new line under it.","`gap` is the space BETWEEN boxes. Rowan needs 32px.","Type `gap: 32px;`"],
+   tip:"`gap` is the easy way to space out buttons or pictures — no need to give each one a margin.",
+   checks:[[a=>a.$$('.hedge .thorn').length>=2,"Keep both `<div class=\"thorn\"></div>` tags inside the hedge."],
+    [a=>isFlex(a,'.hedge'),"Keep `display: flex;` inside `.hedge { }`."],
+    [a=>parseFloat(a.css(a.$('.hedge'),'columnGap'))>=30,"Add `gap: 32px;` inside `.hedge { }`."],
+    [a=>{const rs=R(a,'.thorn').sort((p,q)=>p.left-q.left);return rs.length>=2&&rs[1].left-rs[0].right>=30;},"The path in the middle must be 32px wide. Use `gap: 32px;`."]]}},
+  {kind:'bridge',at:[21,5],w:3,h:2,lesson:{id:'rzk3_4',concept:'flex-wrap — a new line',solid:'.log',
+   learn:"A flex row keeps everything on **one line** — even if it has to squish the boxes thin!\n`flex-wrap: wrap;` lets the boxes that don't fit **jump down to a new line**, like words in a book.",
+   example:".row { display: flex; flex-wrap: wrap; }",
+   mission:"Six logs are squished into one thin row, but the moat is 2 tiles wide. Let the logs wrap onto a second line to make a raft.",
+   job:"Inside `.raft { }` add `flex-wrap: wrap;`. 3 logs stay on top and 3 jump down. Now the raft is 2 tiles deep!",
+   starter:"<div class=\"raft\">\n  <div class=\"log\"></div>\n  <div class=\"log\"></div>\n  <div class=\"log\"></div>\n  <div class=\"log\"></div>\n  <div class=\"log\"></div>\n  <div class=\"log\"></div>\n</div>\n\n<style>\n  .raft {\n    display: flex;\n  }\n  .log {\n    width: 32px;\n    height: 32px;\n    background: #b07a4e;\n  }\n</style>",
+   answer:"<div class=\"raft\">\n  <div class=\"log\"></div>\n  <div class=\"log\"></div>\n  <div class=\"log\"></div>\n  <div class=\"log\"></div>\n  <div class=\"log\"></div>\n  <div class=\"log\"></div>\n</div>\n\n<style>\n  .raft {\n    display: flex;\n    flex-wrap: wrap;\n  }\n  .log {\n    width: 32px;\n    height: 32px;\n    background: #b07a4e;\n  }\n</style>",
+   hints:["Keep `display: flex;` — add a new line under it.","\"Wrap\" means: when the line is full, carry on in the next line.","Type `flex-wrap: wrap;`"],
+   tip:"Picture galleries use `flex-wrap: wrap;` — when a row is full, the next picture starts a new row.",
+   checks:[[a=>a.$$('.raft .log').length>=6,"Keep all 6 `<div class=\"log\"></div>` tags inside the raft."],
+    [a=>isFlex(a,'.raft'),"Keep `display: flex;` inside `.raft { }`."],
+    [a=>/wrap/.test(a.css(a.$('.raft'),'flexWrap')),"Add `flex-wrap: wrap;` inside `.raft { }`."],
+    [a=>{const rs=R(a,'.log');return rs.every(r=>r.width>=30)&&[16,48,80].some(x=>inside(rs,x,8)&&inside(rs,x,56));},"The raft must be 2 tiles deep. Keep each log `32px` wide and `32px` tall."]]}},
+  {kind:'bridge',at:[5,4],w:7,h:1,lesson:{id:'rzk3_5',concept:'flex-grow — fill the space',solid:'.row > div',
+   learn:"`flex-grow: 1;` tells a box: **grow and fill all the empty space** left in the row.\nIt only works in a flex row — so first the row needs `display: flex;`. Then the plank grows until it bumps into the post.",
+   example:".row { display: flex; }\n.grow { flex-grow: 1; }",
+   mission:"A short plank and a dock post. Put them in a row, then make the plank grow across the whole pit — watch out for the arrows!",
+   job:"Two steps! Put `display: flex;` inside `.row { }`. Then put `flex-grow: 1;` inside `.plank { }`.",
+   starter:"<div class=\"row\">\n  <div class=\"plank\"></div>\n  <div class=\"post\"></div>\n</div>\n\n<style>\n  .row {\n\n  }\n  .plank {\n    width: 32px;\n    height: 32px;\n    background: #c98a4b;\n  }\n  .post {\n    width: 64px;\n    height: 32px;\n    background: #8b6b4a;\n  }\n</style>",
+   answer:"<div class=\"row\">\n  <div class=\"plank\"></div>\n  <div class=\"post\"></div>\n</div>\n\n<style>\n  .row {\n    display: flex;\n  }\n  .plank {\n    width: 32px;\n    height: 32px;\n    background: #c98a4b;\n    flex-grow: 1;\n  }\n  .post {\n    width: 64px;\n    height: 32px;\n    background: #8b6b4a;\n  }\n</style>",
+   hints:["Step 1 is like the first altar: `display: flex;` inside `.row { }`.","Step 2: inside `.plank { }`, before the `}`, add one more rule.","Type `flex-grow: 1;` inside `.plank { }`."],
+   tip:"A search bar that stretches to fill the top of a page, next to a fixed-size button? That's `flex-grow: 1;`!",
+   checks:[[a=>!!a.$('.row .plank')&&!!a.$('.row .post'),"Keep the plank and the post inside `<div class=\"row\">`."],
+    [a=>isFlex(a,'.row'),"Step 1: put `display: flex;` inside `.row { }`."],
+    [a=>parseFloat(a.css(a.$('.plank'),'flexGrow'))>=1,"Step 2: put `flex-grow: 1;` inside `.plank { }`."],
+    [a=>{const r=a.$('.plank').getBoundingClientRect();return r.left<=2&&r.right>=158&&r.top<=2&&r.height>=30;},"The plank must cover the whole pit. Keep the plank first, the post last, and both `32px` tall."]]}}
+ ]};
+SWORD_DATA.dungeons.push(D);
+})();
 </script>
 <script>
-/* placeholder — dungeon file */
+/* Sword & Script — Dungeon 4: Clockwork Keep (CSS Grid — rows and columns) */
+(()=>{
+/* geometry helpers for the checks: they look at where the pieces REALLY landed, so any correct answer opens the dungeon */
+const boxes=(a,sel)=>{let els=[];try{els=a.$$(sel);}catch(e){}return els.map(el=>el.getBoundingClientRect()).filter(r=>r.width>=6&&r.height>=6);};
+const inBox=(rs,x,y)=>rs.some(r=>x>r.left&&x<r.right&&y>r.top&&y<r.bottom);
+/* a tile is bridged when its middle and 4 inner corners sit on a plank */
+const bridged=(sel,tiles)=>a=>{const rs=boxes(a,sel);return tiles.every(([x,y])=>[[16,16],[6,6],[26,6],[6,26],[26,26]].every(([dx,dy])=>inBox(rs,x*32+dx,y*32+dy)));};
+/* some whole row of the zone is bridged */
+const rowBridged=(sel,w,h)=>a=>{for(let y=0;y<h;y++){const t=[];for(let x=0;x<w;x++)t.push([x,y]);if(bridged(sel,t)(a))return true;}return false;};
+/* a switch is pressed when its tile centre is inside a block (same rule as the game) */
+const pressed=(sel,tiles)=>a=>{const rs=boxes(a,sel);return tiles.every(([x,y])=>rs.some(r=>x*32+16>=r.left&&x*32+16<=r.right&&y*32+16>=r.top&&y*32+16<=r.bottom));};
+/* no block touches these tiles */
+const clear=(sel,tiles)=>a=>{const rs=boxes(a,sel);return tiles.every(([x,y])=>!rs.some(r=>r.right>x*32+1&&r.left<x*32+31&&r.bottom>y*32+1&&r.top<y*32+31));};
+const disp=(a,sel)=>{const e=a.$(sel);return e?a.css(e,'display'):'';};
+
+const D={id:'k4',name:'Clockwork Keep',theme:'clock',topic:'CSS Grid — rows and columns',
+ story:["Spark: Tick… tock… Rowan, listen! This whole castle is one giant clock!","Rowan: The Hex King hid the fourth crystal somewhere in these gears.","Spark: Clockwork loves neat rows and columns. Here the rune altars speak CSS Grid — squares, like a chess board!"],
+ outro:["Spark: The fourth crystal! Hear that? Every clock in the keep ticks in time again.","Rowan: Rows, columns, gaps and maps. Grid is like building with a ruler!","Hex King: Tick-tock, little knight. Your time is running out… My desert will bury you in sand!"],
+ boss:{name:'Cog Colossus',color:'#d97706'},
+ map:[
+  "#############################################",
+  "#T..._____.g.p##T...........T##.............#",
+  "#.R.._____....##.............##...g.........#",
+  "#...._____..b.##...#.....#...##......T.H.T..#",
+  "#....___##....##.............##.............#",
+  "#....##_##............X......Z.........E....#",
+  "#.b..##___....##.............##.............#",
+  "#...._____....##...#.....#...##......T...T..#",
+  "#...._____..g.##.............##...g.........#",
+  "#T..._____...p##T...........T##.............#",
+  "###.#########################################",
+  "###L#########################################",
+  "#T.....a....pC##T.p........#C##a________...a#",
+  "#.............##.p...PPP...#.##.________....#",
+  "#....#........##.............##.__.__.__.R..#",
+  "#....#...#....##........P....##.__.__.__....#",
+  "#..b.#...#.....D................__.__.__....#",
+  "#....#...#....##.............##.__.__.__...T#",
+  "#....#...#....##......R......##._____.__..s.#",
+  "#..p.....#.b..##..s.......s..##._____g__....#",
+  "#Kp....a.....g##T...........g##g_____C__...p#",
+  "#########################################.###",
+  "#########################################D###",
+  "#T,,p.~~~~~.pC##pp...g..R....##p...........p#",
+  "#,,p,.~~~~~...##.............##...........b.#",
+  "#...R.~~~~~...###T########...##...#..x..#...#",
+  "#.....~~~~~...##........s....##.............#",
+  "#.S...~~~~~.........s............b...T...s..#",
+  "#.....~~~~~...##............................#",
+  "#,,,,.~~~~~...##...####T#######...#..x..#...#",
+  "#gBB,.~~~~~.sg##............p##............g#",
+  "#T,,,.~~~~~.pp##g.......p..pC##p...........p#",
+  "#############################################"],
+ zones:[
+  /* 1 — Clock Courtyard: a bridge over the river */
+  {kind:'bridge',w:5,h:3,at:[6,26],rune:[4,25],lesson:{id:'rzk4_1',concept:'display: grid and columns',solid:'.plank',
+   learn:"**CSS Grid** puts things in **columns** (side by side) and **rows** (one under the other) — like the squares on a chess board.\nStep 1: `display: grid;` turns a box into a grid.\nStep 2: `grid-template-columns` says how many columns there are, and how wide. `32px 32px` = 2 columns, each 32px wide.",
+   example:".shelf {\n  display: grid;\n  grid-template-columns: 32px 32px 32px;\n}",
+   mission:"The river is 5 tiles wide. The 5 planks are piled up on the left bank, one on top of the other. Make a grid with 5 columns, so the planks lie side by side.",
+   job:"Inside `.bridge { }` type `display: grid;` and `grid-template-columns: 32px 32px 32px 32px 32px;` — that is 5 columns.",
+   starter:"<div class=\"bridge\">\n  <div class=\"plank\"></div>\n  <div class=\"plank\"></div>\n  <div class=\"plank\"></div>\n  <div class=\"plank\"></div>\n  <div class=\"plank\"></div>\n</div>\n\n<style>\n  .bridge {\n    margin-top: 32px;\n\n  }\n  .plank {\n    width: 32px;\n    height: 32px;\n    background: #c98a4b;\n  }\n</style>",
+   answer:"<div class=\"bridge\">\n  <div class=\"plank\"></div>\n  <div class=\"plank\"></div>\n  <div class=\"plank\"></div>\n  <div class=\"plank\"></div>\n  <div class=\"plank\"></div>\n</div>\n\n<style>\n  .bridge {\n    margin-top: 32px;\n    display: grid;\n    grid-template-columns: 32px 32px 32px 32px 32px;\n  }\n  .plank {\n    width: 32px;\n    height: 32px;\n    background: #c98a4b;\n  }\n</style>",
+   hints:["Both new lines go inside `.bridge { }`, under `margin-top`.","First `display: grid;` — then the columns. Each plank is 32px wide and there are 5 planks.","Type: `display: grid;` and then `grid-template-columns: 32px 32px 32px 32px 32px;`"],
+   tip:"Typing 32px five times is boring! `repeat(5, 32px)` means exactly the same. You will see it again soon.",
+   checks:[[a=>disp(a,'.bridge')==='grid',"Turn the box into a grid: type `display: grid;` inside `.bridge { }`."],
+    [a=>gridCols(a,'.bridge').length>=5,"Make 5 columns: `grid-template-columns: 32px 32px 32px 32px 32px;`"],
+    [rowBridged('.plank',5,3),"The planks must lie in one line all the way across the river. Use 5 columns of `32px`."]]}},
+
+  /* 2 — Pendulum Hall: a gate made of two stone blocks */
+  {kind:'block',w:2,h:4,at:[29,25],rune:[24,23],lesson:{id:'rzk4_2',concept:'Rows and fr',solid:'.block',
+   learn:"`grid-template-rows` makes **rows**, one under the other.\n`fr` means **a share** of the space. `1fr 1fr` = 2 rows of the same size.\n`1fr 1fr 2fr` = 3 rows, and the last one gets **2 shares**, so it is twice as tall.\nA row with nothing in it stays **empty**.",
+   example:".tower {\n  display: grid;\n  grid-template-rows: 1fr 2fr;\n}",
+   mission:"Two stone blocks fill the whole gate. Make 3 rows instead of 2: the blocks take the two small rows at the top, and the big empty row at the bottom opens the way.",
+   job:"Change the rows to `grid-template-rows: 1fr 1fr 2fr;`. The big empty 3rd row is your way through!",
+   starter:"<div class=\"gate\">\n  <div class=\"block\"></div>\n  <div class=\"block\"></div>\n</div>\n\n<style>\n  .gate {\n    display: grid;\n    height: 100%;\n    grid-template-rows: 1fr 1fr;\n  }\n  .block { background: #a8a29e; }\n</style>",
+   answer:"<div class=\"gate\">\n  <div class=\"block\"></div>\n  <div class=\"block\"></div>\n</div>\n\n<style>\n  .gate {\n    display: grid;\n    height: 100%;\n    grid-template-rows: 1fr 1fr 2fr;\n  }\n  .block { background: #a8a29e; }\n</style>",
+   hints:["Find `grid-template-rows: 1fr 1fr;` inside `.gate { }`.","Add a 3rd row at the end that gets 2 shares: `2fr`.","It becomes: `grid-template-rows: 1fr 1fr 2fr;`"],
+   tip:"`fr` works on any screen. `1fr 3fr` gives a thin menu and a big page — on a phone or on a TV.",
+   checks:[[a=>gridCols(a,'.gate','gridTemplateRows').length>=3,"Make 3 rows: `grid-template-rows: 1fr 1fr 2fr;`"],
+    [clear('.block',[[0,2],[1,2],[0,3],[1,3]]),"The gate is still blocked! The LAST row must be the big one: `1fr 1fr 2fr`."]]}},
+
+  /* 3 — Stepping Stones: planks over a pit, the gaps land on the stone posts */
+  {kind:'bridge',w:8,h:2,at:[32,15],rune:[41,14],lesson:{id:'rzk4_3',concept:'gap',solid:'.plank',
+   learn:"`gap` puts **empty space between** the cells of a grid.\n`gap: 32px;` = 32px of space between the columns (and between the rows).\nNothing is drawn in a gap.\nNew trick: `repeat(3, 64px)` is short for `64px 64px 64px`.",
+   example:".stones {\n  display: grid;\n  grid-template-columns: repeat(3, 64px);\n  gap: 32px;\n}",
+   mission:"A deep pit with two stone posts in the middle. The 3 planks are squashed together, so the last hole has no plank. Add a gap: the gaps sit on the stone posts, and the planks cover the holes.",
+   job:"Add `gap: 32px;` inside `.path { }`. The planks spread out and cover all 3 holes.",
+   starter:"<div class=\"path\">\n  <div class=\"plank\"></div>\n  <div class=\"plank\"></div>\n  <div class=\"plank\"></div>\n</div>\n\n<style>\n  .path {\n    display: grid;\n    grid-template-columns: repeat(3, 64px);\n    grid-template-rows: 64px;\n\n  }\n  .plank { background: #c98a4b; }\n</style>",
+   answer:"<div class=\"path\">\n  <div class=\"plank\"></div>\n  <div class=\"plank\"></div>\n  <div class=\"plank\"></div>\n</div>\n\n<style>\n  .path {\n    display: grid;\n    grid-template-columns: repeat(3, 64px);\n    grid-template-rows: 64px;\n    gap: 32px;\n  }\n  .plank { background: #c98a4b; }\n</style>",
+   hints:["`gap` goes inside `.path { }`, under the other lines.","The stone posts are 32px wide, so the gap is 32px too.","Add this line: `gap: 32px;`"],
+   tip:"`column-gap` and `row-gap` make space only one way. Photo galleries use `gap` to keep the pictures apart.",
+   checks:[[a=>{const e=a.$('.path');return !!e&&parseFloat(a.css(e,'columnGap'))>0;},"Add `gap: 32px;` inside `.path { }`."],
+    [bridged('.plank',[[0,0],[1,0],[3,0],[4,0],[6,0],[7,0],[0,1],[1,1],[3,1],[4,1],[6,1],[7,1]]),"A hole still has no plank! Use `gap: 32px;` so the gaps land on the 2 stone posts."]]}},
+
+  /* 4 — Switch Grid: put the blocks on four switches at once */
+  {kind:'block',w:5,h:4,at:[20,12],rune:[22,18],lesson:{id:'rzk4_4',concept:'Grid lines: grid-column and grid-row',solid:'.block',
+   learn:"Grid **lines** are the lines between the cells. They have numbers, starting at **1** on the left and at the top.\n5 columns have 6 lines: 1 2 3 4 5 6.\n`grid-column: 2 / 5;` = start at line 2, stop at line 5 — so the block is 3 cells long.\n`grid-row: 2;` = put it in row 2.",
+   example:".boat {\n  grid-column: 1 / 3;\n  grid-row: 2;\n}",
+   mission:"Four switches glow on the floor: three in a row, and one in the corner. Put the long block on the three, and the small block on the last one. Then the door opens!",
+   job:"In `.long { }` type `grid-column: 2 / 5;` and `grid-row: 2;`. In `.small { }` type `grid-column: 5;` and `grid-row: 4;`.",
+   starter:"<div class=\"grid\">\n  <div class=\"block long\"></div>\n  <div class=\"block small\"></div>\n</div>\n\n<style>\n  .grid {\n    display: grid;\n    grid-template-columns: repeat(5, 32px);\n    grid-template-rows: repeat(4, 32px);\n  }\n  .long {\n    grid-column: span 3;\n  }\n  .small {\n\n  }\n  .block { background: #d6a75c; }\n</style>",
+   answer:"<div class=\"grid\">\n  <div class=\"block long\"></div>\n  <div class=\"block small\"></div>\n</div>\n\n<style>\n  .grid {\n    display: grid;\n    grid-template-columns: repeat(5, 32px);\n    grid-template-rows: repeat(4, 32px);\n  }\n  .long {\n    grid-column: 2 / 5;\n    grid-row: 2;\n  }\n  .small {\n    grid-column: 5;\n    grid-row: 4;\n  }\n  .block { background: #d6a75c; }\n</style>",
+   hints:["Count the lines from the left: the first switch starts at line 2. The row of 3 switches is row 2.","Long block: change `grid-column: span 3;` to `grid-column: 2 / 5;` and add `grid-row: 2;`.","Small block: inside `.small { }` type `grid-column: 5;` and `grid-row: 4;`."],
+   tip:"`grid-column: 2 / span 3;` means the same thing: start at line 2 and stretch over 3 cells.",
+   checks:[[pressed('.long',[[1,1],[2,1],[3,1]]),"Put the long block on the 3 switches in a row: `grid-column: 2 / 5;` and `grid-row: 2;` inside `.long { }`."],
+    [pressed('.small',[[4,3]]),"Put the small block on the corner switch: `grid-column: 5;` and `grid-row: 4;` inside `.small { }`."],
+    [pressed('.block',[[1,1],[2,1],[3,1],[4,3]]),"Keep `class=\"block long\"` and `class=\"block small\"` on the two tags, so they stay stone blocks."]]}},
+
+  /* 5 — Gear Pit: a zig-zag bridge drawn as a map */
+  {kind:'bridge',w:5,h:3,at:[5,4],rune:[2,2],lesson:{id:'rzk4_5',concept:'grid-template-areas: a map',solid:'.bridge > div',
+   learn:"`grid-template-areas` draws a **map** of the grid with words.\nEach line in quotes is one **row**. Each word is one **cell**. A `.` is an empty cell.\nThen `grid-area: b;` sends a piece to the cells called `b`.\nHere you use everything: columns, rows, `repeat` and a map!",
+   example:"grid-template-areas:\n  \"top  top\"\n  \"left right\";",
+   mission:"Stone gear-posts stand in the pit, so the bridge must zig-zag: across the top, down the middle, then across the bottom. Plank `a` is already on the map. Finish the map for planks `b` and `c`.",
+   job:"Change row 2 of the map to `\". . b . .\"` and row 3 to `\". . c c c\"`. Then the bridge zig-zags across!",
+   starter:"<div class=\"bridge\">\n  <div class=\"a\"></div>\n  <div class=\"b\"></div>\n  <div class=\"c\"></div>\n</div>\n\n<style>\n  .bridge {\n    display: grid;\n    grid-template-columns: repeat(5, 32px);\n    grid-template-rows: repeat(3, 32px);\n    grid-template-areas:\n      \"a a a . .\"\n      \". . . . .\"\n      \". . . . .\";\n  }\n  .a { grid-area: a; }\n  .b { grid-area: b; }\n  .c { grid-area: c; }\n  .bridge div { background: #c98a4b; }\n</style>",
+   answer:"<div class=\"bridge\">\n  <div class=\"a\"></div>\n  <div class=\"b\"></div>\n  <div class=\"c\"></div>\n</div>\n\n<style>\n  .bridge {\n    display: grid;\n    grid-template-columns: repeat(5, 32px);\n    grid-template-rows: repeat(3, 32px);\n    grid-template-areas:\n      \"a a a . .\"\n      \". . b . .\"\n      \". . c c c\";\n  }\n  .a { grid-area: a; }\n  .b { grid-area: b; }\n  .c { grid-area: c; }\n  .bridge div { background: #c98a4b; }\n</style>",
+   hints:["Each row of the map is in quotes, with 5 cells and spaces between them.","Row 2 needs `b` in the middle cell: `\". . b . .\"`","Row 3: `\". . c c c\"` — `c` fills the last 3 cells."],
+   tip:"Real websites draw their page like this: `\"header header\"` and `\"menu main\"`. Easy to read, easy to change!",
+   checks:[[a=>{const e=a.$('.bridge');return !!e&&/\bb\b/.test(a.css(e,'gridTemplateAreas'));},"Put `b` on the map: row 2 is `\". . b . .\"` (5 cells, with spaces, every row the same length)."],
+    [a=>{const e=a.$('.bridge');return !!e&&/\bc\b/.test(a.css(e,'gridTemplateAreas'));},"Put `c` on the map: row 3 is `\". . c c c\"`."],
+    [bridged('.bridge > div',[[0,0],[1,0],[2,0],[2,1],[2,2],[3,2],[4,2]]),"The bridge doesn't reach! Row 2 = `\". . b . .\"` and row 3 = `\". . c c c\"`."]]}}
+ ]};
+SWORD_DATA.dungeons.push(D);
+})();
 </script>
 <script>
-/* placeholder — dungeon file */
+/* Sword & Script — Dungeon 5: Sandstone Vault (CSS position, transform & animation) */
+(()=>{
+/* helpers: is the point (x,y) of the zone inside one of the boxes? / the box of one element */
+const box=(a,el)=>el.getBoundingClientRect();
+const covers=(a,sel,x,y)=>a.$$(sel).some(el=>{const r=box(a,el);return x>r.left&&x<r.right&&y>r.top&&y<r.bottom;});
+const turned=(a,el)=>a.css(el,'transform')!=='none'||(a.css(el,'rotate')||'none')!=='none'||(a.css(el,'scale')||'none')!=='none';
+/* fast-forward the raft's animation (out and back) and report how far it travels */
+function travel(a){const el=a.$('.raft');if(!el)return null;const an=el.getAnimations?el.getAnimations():[];let mn=1e9,mx=-1e9,dur=0;
+  const save=an.map(x=>x.currentTime);an.forEach(x=>{x.pause();const t=x.effect.getComputedTiming();dur=Math.max(dur,(+t.duration||0)*(t.iterations===Infinity?2:Math.min(2,t.iterations||1)));});
+  for(let k=0;k<=32;k++){an.forEach(x=>{x.currentTime=dur*k/32;});const r=box(a,el);mn=Math.min(mn,r.left);mx=Math.max(mx,r.right);}
+  an.forEach((x,i)=>{x.currentTime=save[i];x.play();});return{mn,mx,dur:an.length?Math.max(...an.map(x=>+x.effect.getComputedTiming().duration||0)):0};}
+const D={id:'k5',name:'Sandstone Vault',theme:'sand',topic:'CSS — position, transform & animation',
+ story:["Spark: Phew, it's hot! This is the Sandstone Vault. The fifth crystal is hidden down here.","Rowan: The floor is full of sand pits. How do we get across?","Spark: With CSS that MOVES things! We can slide stones, turn planks — and even make a raft sail all by itself."],
+ outro:["Spark: Five crystals! Just one more to go!","Rowan: Where is the last one, Hex King?","Hex King: High up in my Cloud Citadel, above the sky! Nobody can walk on clouds… ha ha ha!"],
+ boss:{name:'Sand Scarab',color:'#d97706'},
+ map:[
+  "#################################a######a####",
+  "#...#.HE..#...##C..______..p.##g...........C#",
+  "#.T.#.....#.T.##...______...................#",
+  "#...###Z###...##.b.______..b.##_____________#",
+  "#.............##...______....##_____________#",
+  "#..............L...______....##_____________#",
+  "#.............##...______....##_____________#",
+  "#......X......##...______..R.##_____________#",
+  "#.............##.p.______....##...........s.#",
+  "#pT.........Tp##g..______...g##p......R....p#",
+  "########################################.####",
+  "###################a####a###############.####",
+  "#Cp..........p##.p.......######p..___......g#",
+  "#......b......#a.......R.######...___..b....#",
+  "#...#.....#...##.....s...######...___.......#",
+  "#.............##.............##...___.......#",
+  "#..b...g..........................___.......#",
+  "#.............##.............##...___...x...#",
+  "#...#.....#...##..s......#.####...___.......#",
+  "#........b....##.......g.#.####.R.___.......#",
+  "#g.....T.....p##p........#.####p..___......C#",
+  "######################.######################",
+  "######################D######################",
+  "#....,B....pC.##T...........T##........#...C#",
+  "#.T..,,......p##...........g.##........D.K..#",
+  "#.......s.....##....P........##.....s..#....#",
+  "#.............##.............##........######",
+  "#.S....................P....................#",
+  "#.........s...##.............##...x.........#",
+  "#......,,,,...##.R...........##.........x...#",
+  "#.T....,BB,...##..........b..##...........s.#",
+  "#p...g.,,,,..g##p...........p##pp..........g#",
+  "#############################################"],
+ zones:[
+  {kind:'block',w:6,h:4,at:[19,24],rune:[17,29],lesson:{id:'rzk5_1',concept:'position: absolute + top & left',solid:'.stone',
+   learn:"`position: absolute;` lets you put a box **exactly** where you want it.\n`top` = how far **down** from the top edge. `left` = how far from the **left** edge.\nOne tile is `32px`. So `top: 64px;` means 2 tiles down.",
+   example:".box {\n  position: absolute;\n  top: 64px;\n  left: 96px;\n}",
+   mission:"Two stones are stuck in the corner. Slide each one onto a glowing switch to open the north door.",
+   job:"Change `.one` to `top: 32px; left: 32px;`. Change `.two` to `top: 96px; left: 128px;`.",
+   starter:'<div class="stone one"></div>\n<div class="stone two"></div>\n\n<style>\n  .stone { position: absolute; width: 32px; height: 32px; background: #d6a76c; }\n  .one { top: 0px; left: 0px; }\n  .two { top: 0px; left: 0px; }\n</style>',
+   answer:'<div class="stone one"></div>\n<div class="stone two"></div>\n\n<style>\n  .stone { position: absolute; width: 32px; height: 32px; background: #d6a76c; }\n  .one { top: 32px; left: 32px; }\n  .two { top: 96px; left: 128px; }\n</style>',
+   hints:["Change only the numbers. Keep the `px` after each one.","`.one` needs `top: 32px;` and `left: 32px;` — 1 tile down, 1 tile right.","`.two` needs `top: 96px;` and `left: 128px;` — 3 tiles down, 4 tiles right."],
+   tip:"Games and maps use this all the time: a pin on a map is often a box with `position: absolute` and a `top` and `left`.",
+   checks:[[a=>a.$$('.stone').length>=2,"Keep both stones: `<div class=\"stone one\">` and `<div class=\"stone two\">`."],
+    [a=>covers(a,'.stone',48,48),"The first switch is still empty. Give `.one` `top: 32px;` and `left: 32px;`."],
+    [a=>covers(a,'.stone',144,112),"The second switch is still empty. Give `.two` `top: 96px;` and `left: 128px;`."]]}},
+  {kind:'block',w:1,h:6,at:[26,15],rune:[23,13],lesson:{id:'rzk5_2',concept:'position: relative',solid:'.stone',
+   learn:"`position: relative;` moves a box **from the spot where it already is**.\n`top: 32px;` then pushes it 32px down from its own spot.\nHere all three stones get the same rule, so they all move down together.",
+   example:".box {\n  position: relative;\n  top: 32px;\n}",
+   mission:"A wall of 3 stones blocks the way east. Under it is an empty hole in the wall — push the stones down into it!",
+   job:"Inside `.stone { }` add `position: relative;` and `top: 96px;`. Every stone moves 3 tiles down.",
+   starter:'<div class="stone"></div>\n<div class="stone"></div>\n<div class="stone"></div>\n\n<style>\n  .stone {\n    width: 32px;\n    height: 32px;\n    background: #c9925a;\n\n  }\n</style>',
+   answer:'<div class="stone"></div>\n<div class="stone"></div>\n<div class="stone"></div>\n\n<style>\n  .stone {\n    width: 32px;\n    height: 32px;\n    background: #c9925a;\n    position: relative;\n    top: 96px;\n  }\n</style>',
+   hints:["Both new lines go inside `.stone { }`, on the empty line.","First `position: relative;` — without it, `top` does nothing!","Add `top: 96px;` too. 96 is 3 tiles of 32px."],
+   tip:"`relative` is great for small nudges: a button that moves down 2px when you press it looks like it really clicks!",
+   checks:[[a=>a.$$('.stone').length>=3,"Keep all 3 `<div class=\"stone\">` tags — push them, don't delete them."],
+    [a=>a.$$('.stone').every(el=>a.css(el,'position')!=='static'),"Add `position: relative;` inside `.stone { }`. Without it, `top` can't move the stones."],
+    [a=>a.$$('.stone').every(el=>box(a,el).top>=95),"The stones still block the path. Push them all the way down with `top: 96px;`."]]}},
+  {kind:'bridge',w:5,h:5,at:[33,14],rune:[32,19],lesson:{id:'rzk5_3',concept:'transform: rotate',solid:'.plank',
+   learn:"`transform: rotate(45deg);` **turns** a box around its middle.\n`deg` means degrees. `90deg` is a quarter turn — like a clock hand going from 12 to 3.",
+   example:".box {\n  transform: rotate(45deg);\n}",
+   mission:"A long plank fell into the pit the wrong way round. Turn it a quarter turn so it reaches across!",
+   job:"Inside `.plank { }` add `transform: rotate(90deg);`.",
+   starter:'<div class="plank"></div>\n\n<style>\n  .plank {\n    position: absolute;\n    top: 0px;\n    left: 48px;\n    width: 64px;\n    height: 160px;\n    background: #b7793f;\n\n  }\n</style>',
+   answer:'<div class="plank"></div>\n\n<style>\n  .plank {\n    position: absolute;\n    top: 0px;\n    left: 48px;\n    width: 64px;\n    height: 160px;\n    background: #b7793f;\n    transform: rotate(90deg);\n  }\n</style>',
+   hints:["Write the new line inside `.plank { }`, on the empty line.","It starts with `transform:` and then `rotate( )`.","Type exactly: `transform: rotate(90deg);`"],
+   tip:"Try `rotate(45deg)` in your own pages for a tilted sticker, or `rotate(180deg)` to turn something upside down!",
+   checks:[[a=>!!a.$('.plank'),"Keep the `<div class=\"plank\">`."],
+    [a=>turned(a,a.$('.plank')),"Turn the plank with `transform: rotate(90deg);` inside `.plank { }`."],
+    [a=>{const r=box(a,a.$('.plank'));return r.width>=150&&r.height<=72;},"The plank isn't lying across the pit yet. Use a quarter turn: `rotate(90deg)`."]]}},
+  {kind:'bridge',w:2,h:5,at:[35,3],rune:[38,9],lesson:{id:'rzk5_4',concept:'transform: scale',solid:'.rock',
+   learn:"`transform: scale(2);` makes a box **2 times bigger**. It grows from its middle.\n`scale(3)` is 3 times bigger. `scale(0.5)` is half as big.",
+   example:".box {\n  transform: scale(2);\n}",
+   mission:"These stepping stones are too tiny — Rowan would slip between them! Make every stone grow until they touch.",
+   job:"Inside `.rock { }` add `transform: scale(2);`. Each stone grows 2 times bigger.",
+   starter:'<div class="path">\n  <div class="rock"></div> <div class="rock"></div>\n  <div class="rock"></div> <div class="rock"></div>\n  <div class="rock"></div> <div class="rock"></div>\n  <div class="rock"></div> <div class="rock"></div>\n  <div class="rock"></div> <div class="rock"></div>\n</div>\n\n<style>\n  .path { display: flex; flex-wrap: wrap; }\n  .rock {\n    width: 16px;\n    height: 16px;\n    margin: 8px;\n    background: #a8a29e;\n\n  }\n</style>',
+   answer:'<div class="path">\n  <div class="rock"></div> <div class="rock"></div>\n  <div class="rock"></div> <div class="rock"></div>\n  <div class="rock"></div> <div class="rock"></div>\n  <div class="rock"></div> <div class="rock"></div>\n  <div class="rock"></div> <div class="rock"></div>\n</div>\n\n<style>\n  .path { display: flex; flex-wrap: wrap; }\n  .rock {\n    width: 16px;\n    height: 16px;\n    margin: 8px;\n    background: #a8a29e;\n    transform: scale(2);\n  }\n</style>',
+   hints:["One rule changes ALL the rocks — write it inside `.rock { }`.","It is a `transform`, like the plank — but this time `scale( )`.","Type exactly: `transform: scale(2);`"],
+   tip:"Lots of buttons grow a little when your mouse is on them: `button:hover { transform: scale(1.1); }`.",
+   checks:[[a=>a.$$('.rock').length>=10,"Keep all 10 `<div class=\"rock\">` stones."],
+    [a=>a.$$('.rock').every(el=>turned(a,el)),"Make the stones grow with `transform: scale(2);` inside `.rock { }`."],
+    [a=>a.$$('.rock').every(el=>{const r=box(a,el);return r.width>=31&&r.height>=31;}),"The stones are still too small to step on. Use `scale(2)` — that makes them 32px wide."]]}},
+  {kind:'bridge',w:8,h:2,at:[18,4],rune:[27,7],lesson:{id:'rzk5_5',concept:'@keyframes animation',solid:'.raft',anim:true,period:6,
+   learn:"An **animation** makes a box move **by itself**.\n`@keyframes ferry { }` is the plan. `to { … }` says where the box should **end up**.\n`transform: translateX(192px)` slides a box 192px to the right.\n`animation: ferry 3s … infinite alternate;` plays the plan: 3 seconds there, 3 seconds back, forever!",
+   example:"@keyframes wiggle {\n  to { transform: translateX(32px); }\n}\n.box { animation: wiggle 1s infinite alternate; }",
+   mission:"The raft is stuck on the far side of the big sand pit. Give it keyframes so it sails back and forth — then ride it across!",
+   job:"Inside `@keyframes ferry { }` write `to { transform: translateX(192px); }`. Then wait for the raft and step on!",
+   starter:'<div class="raft"></div>\n\n<style>\n  .raft {\n    position: absolute;\n    left: 0px;\n    width: 64px;\n    height: 64px;\n    background: #c98a4b;\n    animation: ferry 3s ease-in-out infinite alternate;\n  }\n\n  @keyframes ferry {\n\n  }\n</style>',
+   answer:'<div class="raft"></div>\n\n<style>\n  .raft {\n    position: absolute;\n    left: 0px;\n    width: 64px;\n    height: 64px;\n    background: #c98a4b;\n    animation: ferry 3s ease-in-out infinite alternate;\n  }\n\n  @keyframes ferry {\n    to { transform: translateX(192px); }\n  }\n</style>',
+   hints:["Write inside `@keyframes ferry { }`, on the empty line.","Start with `to { }` — that is where the raft ends up.","Inside it put `transform: translateX(192px);` — so the whole line is `to { transform: translateX(192px); }`"],
+   tip:"Loading spinners, bouncing icons and blinking cursors are all made with `@keyframes`. Try `to { transform: rotate(360deg); }` for a spinner!",
+   checks:[[a=>!!a.$('.raft'),"Keep the `<div class=\"raft\">`."],
+    [a=>{const t=travel(a);return t&&t.mx-t.mn>=96;},"The raft isn't moving yet. Inside `@keyframes ferry { }` write `to { transform: translateX(192px); }`."],
+    [a=>{const t=travel(a);return t&&t.mn<=4&&t.mx>=252;},"The raft must sail all the way across. Slide it `translateX(192px)` — that's 6 tiles."],
+    [a=>{const t=travel(a);return t&&t.dur>=1000;},"That's too fast for Rowan to jump on! Keep the animation at `3s`."]]}}
+ ]};
+SWORD_DATA.dungeons.push(D);
+})();
 </script>
 <script>
-/* placeholder — dungeon file */
+/* Sword & Script — Dungeon 6: Cloud Citadel (JavaScript — code that builds and moves) */
+(()=>{
+/* helpers: the player's own JavaScript (scripts in the body only), boxes, coverage */
+const src=a=>a.$$('body script').map(s=>s.textContent).join('\n');
+const box=(a,el)=>el.getBoundingClientRect();
+const covers=(a,sel,x,y)=>a.$$(sel).some(el=>{const r=box(a,el);return x>r.left&&x<r.right&&y>r.top&&y<r.bottom;});
+const GOLD='#f4c46b';
+const D={id:'k6',name:'Cloud Citadel',theme:'cloud',topic:'JavaScript — code that builds and moves',
+ story:["Spark: Whoa — we're above the clouds! This is the Cloud Citadel, the Hex King's own castle.","Rowan: The gaps here drop straight down into the sky. One wrong step…","Spark: Here the altars speak JavaScript! JavaScript can BUILD new bridges and MOVE them. Let's get the last crystal!"],
+ outro:["Hex King: No… my magic is gone! You beat all six of my dungeons, little knight.","Rowan: All six crystals are home! But why did you take them?","Hex King: Everyone could build things but me… Will you teach me to code too?","Spark: Of course! The altars are open to everyone. The kingdom shines again — THE END! 🌟"],
+ boss:{name:'The Hex King',color:'#7c3aed'},
+ map:[
+  "#############################################",
+  "#C..._________##C........p...##.........#..H#",
+  "#...._________##.............L..........Z.E.#",
+  "#.T.._________##_____________##.........#...#",
+  "#....______...##_____________##.........#####",
+  "#b...______...##_____________##.............#",
+  "#..R.______.p.##_____________##.....X.......#",
+  "#....______...##_____________##.............#",
+  "#....______..................##.T...........#",
+  "#p...______..g##gb.R.....b..p##p......T....p#",
+  "##.##########################################",
+  "##.##########################################",
+  "#p..______..g.##p....b......g##C...........C#",
+  "#...______....##..........x..##.............#",
+  "#...______.R..##...#.....#...##...__.....b..#",
+  "#...______....##......s......##...__........#",
+  "#...______.....D..x..........##......g......#",
+  "#...______....##.............##........__...#",
+  "#...______..b.##...#.....#...##.....b..__...#",
+  "#.p.______....##........s....##..b.........p#",
+  "#C..______..p.##............C##p...........g#",
+  "######################.##############.#######",
+  "###################a##D###a##########.#######",
+  "#,T..._____..C##.............##g...........p#",
+  "#,...._____.s.##..........b..##...#.........#",
+  "#...R._____...##............a##...#.....x...#",
+  "#....._____...##.....P.......##.............#",
+  "#.S..._____.........................x.......#",
+  "#....._____...##.........s...##.............#",
+  "#p...._____...##.R...........##.........#...#",
+  "#...B._____.s.##.............##..s......#.K.#",
+  "#.Tp.._____..g##p.......p...g##p...........C#",
+  "#############################################"],
+ zones:[
+  {kind:'bridge',w:5,h:2,at:[6,26],rune:[4,25],lesson:{id:'rzk6_1',concept:'querySelector + style',solid:'.bridge',js:true,
+   learn:"JavaScript goes between `<script>` and `<\/script>`.\n`document.querySelector('.bridge')` **finds** the box with the class `bridge`.\n`bridge.style.width = '160px';` then **changes** how wide it is.",
+   example:"let box = document.querySelector('.box');\nbox.style.width = '100px';",
+   mission:"A golden bridge pokes out over the sky — but it's far too short. Use JavaScript to make it longer.",
+   job:"The gap is 5 tiles wide. In the script, change `'32px'` to `'160px'`.",
+   starter:"<div class=\"bridge\"></div>\n\n<script>\n  let bridge = document.querySelector('.bridge');\n  bridge.style.width = '32px';\n<\/script>\n\n<style>\n  .bridge { height: 64px; background: "+GOLD+"; }\n</style>",
+   answer:"<div class=\"bridge\"></div>\n\n<script>\n  let bridge = document.querySelector('.bridge');\n  bridge.style.width = '160px';\n<\/script>\n\n<style>\n  .bridge { height: 64px; background: "+GOLD+"; }\n</style>",
+   hints:["Look inside `<script>` for the line with `style.width`.","Only change the number. Keep the quotes and the `px`.","The line should be: `bridge.style.width = '160px';`"],
+   tip:"`style` can change anything CSS can: `bridge.style.background = 'pink';` would paint it pink!",
+   checks:[[a=>!!a.$('.bridge'),"Keep the `<div class=\"bridge\">`."],
+    [a=>/querySelector/.test(src(a))&&!!a.$('.bridge').style.width,"Change the width in the script: `bridge.style.width = '160px';`"],
+    [a=>box(a,a.$('.bridge')).width>=156,"Still too short! The gap is 5 tiles, so make it `'160px'`."]]}},
+  {kind:'block',w:6,h:4,at:[17,24],rune:[17,29],lesson:{id:'rzk6_2',concept:'Variables',solid:'.stone',js:true,
+   learn:"A **variable** is a box with a name that holds a value.\n`let across = 4;` makes a box called `across` and puts `4` inside.\nThe code below uses `across` and `down` to place the stone. 1 step = 1 tile = 32px.",
+   example:"let lives = 3;\nlives = lives + 1;  // now lives is 4",
+   mission:"Arrows fly while you think! Push the stone onto the switch to open the north door.",
+   job:"Change `let across = 0;` to `let across = 4;`. Change `let down = 0;` to `let down = 2;`.",
+   starter:"<div class=\"stone\"></div>\n\n<script>\n  let across = 0;\n  let down = 0;\n\n  let stone = document.querySelector('.stone');\n  stone.style.left = across * 32 + 'px';\n  stone.style.top = down * 32 + 'px';\n<\/script>\n\n<style>\n  .stone { position: absolute; width: 32px; height: 32px; background: #a5b4fc; }\n</style>",
+   answer:"<div class=\"stone\"></div>\n\n<script>\n  let across = 4;\n  let down = 2;\n\n  let stone = document.querySelector('.stone');\n  stone.style.left = across * 32 + 'px';\n  stone.style.top = down * 32 + 'px';\n<\/script>\n\n<style>\n  .stone { position: absolute; width: 32px; height: 32px; background: #a5b4fc; }\n</style>",
+   hints:["You only change the two numbers at the top of the script.","`across` is how many tiles to the right: `let across = 4;`","`down` is how many tiles down: `let down = 2;`"],
+   tip:"Games are full of variables: your score, your lives, where you are. Change the variable and the game changes!",
+   checks:[[a=>!!a.$('.stone'),"Keep the `<div class=\"stone\">`."],
+    [a=>/let\s+across/.test(src(a))&&/let\s+down/.test(src(a)),"Keep the two variables `let across = …;` and `let down = …;`."],
+    [a=>covers(a,'.stone',144,80),"The stone isn't on the switch. Use `let across = 4;` and `let down = 2;`."]]}},
+  {kind:'bridge',w:6,h:2,at:[4,15],rune:[11,14],lesson:{id:'rzk6_3',concept:'for loop + createElement',solid:'.plank',js:true,
+   learn:"`document.createElement('div')` makes a **new** box. `document.body.append(plank)` puts it on the page.\nA **for loop** repeats code. `for (let i = 0; i < 6; i++)` runs it **6 times** — `i` counts 0, 1, 2, 3, 4, 5.",
+   example:"for (let i = 0; i < 3; i++) {\n  console.log('Hello!');   // says Hello 3 times\n}",
+   mission:"A wide sky gap! The loop builds planks one after another — but right now it only builds one.",
+   job:"The gap is 6 planks wide. Change `i < 1` to `i < 6`.",
+   starter:"<script>\n  for (let i = 0; i < 1; i++) {\n    let plank = document.createElement('div');\n    plank.className = 'plank';\n    document.body.append(plank);\n  }\n<\/script>\n\n<style>\n  body { display: flex; }\n  .plank { width: 32px; height: 64px; flex: none; background: "+GOLD+"; }\n</style>",
+   answer:"<script>\n  for (let i = 0; i < 6; i++) {\n    let plank = document.createElement('div');\n    plank.className = 'plank';\n    document.body.append(plank);\n  }\n<\/script>\n\n<style>\n  body { display: flex; }\n  .plank { width: 32px; height: 64px; flex: none; background: "+GOLD+"; }\n</style>",
+   hints:["Look at the first line of the loop: `for (let i = 0; i < 1; i++)`.","`i < 1` means \"stop at 1\". You need 6 planks.","Change it to `for (let i = 0; i < 6; i++)`"],
+   tip:"Loops are how websites show long lists — one loop can make 100 cards from 100 things, without copying code.",
+   checks:[[a=>/for\s*\(/.test(src(a))&&/createElement/.test(src(a)),"Keep the `for` loop that uses `document.createElement('div')`."],
+    [a=>a.$$('.plank').length>=6,"Not enough planks yet! The gap needs 6 — change `i < 1` to `i < 6`."],
+    [a=>[16,48,80,112,144,176].every(x=>covers(a,'.plank',x,32)),"There's still a hole in the bridge. Make 6 planks with `i < 6`."]]}},
+  {kind:'bridge',w:6,h:4,at:[5,2],rune:[3,6],lesson:{id:'rzk6_4',concept:'Functions',solid:'.cloud',js:true,
+   learn:"A **function** is a spell with a name. `function cloud(x, y) { … }` teaches the computer the spell.\n`cloud(64, 0);` **casts** it. The numbers go into `x` and `y` — that's where the new cloud appears.",
+   example:"function hello(name) {\n  console.log('Hi ' + name);\n}\nhello('Rowan');\nhello('Spark');",
+   mission:"The path over the sky turns a corner. Cast the cloud spell to make stepping clouds all the way to the far side.",
+   job:"Under `cloud(0, 0);` cast the spell 3 more times: `cloud(64, 0);` `cloud(128, 0);` `cloud(128, 64);`",
+   starter:"<script>\n  function cloud(x, y) {\n    let c = document.createElement('div');\n    c.className = 'cloud';\n    c.style.left = x + 'px';\n    c.style.top = y + 'px';\n    document.body.append(c);\n  }\n\n  cloud(0, 0);\n\n<\/script>\n\n<style>\n  .cloud { position: absolute; width: 64px; height: 64px; border-radius: 16px; background: "+GOLD+"; }\n</style>",
+   answer:"<script>\n  function cloud(x, y) {\n    let c = document.createElement('div');\n    c.className = 'cloud';\n    c.style.left = x + 'px';\n    c.style.top = y + 'px';\n    document.body.append(c);\n  }\n\n  cloud(0, 0);\n  cloud(64, 0);\n  cloud(128, 0);\n  cloud(128, 64);\n<\/script>\n\n<style>\n  .cloud { position: absolute; width: 64px; height: 64px; border-radius: 16px; background: "+GOLD+"; }\n</style>",
+   hints:["Each new cloud is one new line, just like `cloud(0, 0);`","The first number is how far right, the second how far down.","Add these 3 lines: `cloud(64, 0);` then `cloud(128, 0);` then `cloud(128, 64);`"],
+   tip:"Functions save typing. Write the steps ONCE, then use them as many times as you like — with different numbers each time.",
+   checks:[[a=>/function\s+cloud/.test(src(a)),"Keep the spell `function cloud(x, y) { … }`."],
+    [a=>a.$$('.cloud').length>=4,"Cast the spell more times! You need 4 clouds: add `cloud(64, 0);` `cloud(128, 0);` `cloud(128, 64);`"],
+    [a=>covers(a,'.cloud',96,32)&&covers(a,'.cloud',160,32),"The top row has a gap. Cast `cloud(64, 0);` and `cloud(128, 0);`"],
+    [a=>covers(a,'.cloud',160,96),"The path must turn down at the end. Cast `cloud(128, 64);`"]]}},
+  {kind:'bridge',w:2,h:7,at:[21,2],rune:[19,9],lesson:{id:'rzk6_5',concept:'setInterval + if / else',solid:'.cloud',js:true,anim:true,period:6,
+   learn:"`setInterval(move, 30);` runs the function `move` **again and again** — every 30 milliseconds. That's how things move!\n`if (…) { … } else if (…) { … }` makes a choice: at the top, go down; at the bottom, go up.",
+   example:"let n = 0;\nsetInterval(() => {\n  n = n + 1;\n  if (n > 10) { n = 0; }\n}, 1000);",
+   mission:"A cloud lift can carry Rowan up across the sky — but it doesn't move, and it turns back too soon. Fix it, then ride it!",
+   job:"1. Add `setInterval(move, 30);` on the empty line at the end. 2. Change `y >= 32` to `y >= 160` so the cloud comes all the way down.",
+   starter:"<div class=\"cloud\"></div>\n\n<script>\n  let cloud = document.querySelector('.cloud');\n  let y = 160;\n  let speed = -2;\n\n  function move() {\n    if (y <= 0) {\n      speed = 2;\n    } else if (y >= 32) {\n      speed = -2;\n    }\n    y = y + speed;\n    cloud.style.top = y + 'px';\n  }\n\n<\/script>\n\n<style>\n  .cloud { position: absolute; top: 160px; width: 64px; height: 64px; border-radius: 16px; background: "+GOLD+"; }\n</style>",
+   answer:"<div class=\"cloud\"></div>\n\n<script>\n  let cloud = document.querySelector('.cloud');\n  let y = 160;\n  let speed = -2;\n\n  function move() {\n    if (y <= 0) {\n      speed = 2;\n    } else if (y >= 160) {\n      speed = -2;\n    }\n    y = y + speed;\n    cloud.style.top = y + 'px';\n  }\n  setInterval(move, 30);\n<\/script>\n\n<style>\n  .cloud { position: absolute; top: 160px; width: 64px; height: 64px; border-radius: 16px; background: "+GOLD+"; }\n</style>",
+   hints:["Nothing calls `move` yet. Add `setInterval(move, 30);` just before `<\/script>`.","Then look at the `else if`. The cloud turns back when `y >= 32` — that's only 1 tile!","Change it to `} else if (y >= 160) {` — 160 is the bottom."],
+   tip:"Every game has a loop like this: move a little, check with `if`, draw, and again — many times every second.",
+   checks:[[a=>!!a.$('.cloud'),"Keep the `<div class=\"cloud\">`."],
+    [a=>/setInterval\s*\(/.test(src(a)),"Make the cloud move: add `setInterval(move, 30);` at the end of the script."],
+    [async a=>{const t0=box(a,a.$('.cloud')).top;await a.wait(240);return box(a,a.$('.cloud')).top!==t0;},"The cloud still doesn't move. Write it like this: `setInterval(move, 30);` (no `()` after `move`)."],
+    [a=>{if(typeof a.win.move!=='function')return false;let mn=1e9,mx=-1e9;for(let k=0;k<260;k++){a.win.move();const r=box(a,a.$('.cloud'));mn=Math.min(mn,r.top);mx=Math.max(mx,r.top);}return mn<=4&&mx>=156;},"The cloud must go from the top (`0`) all the way to the bottom. Change `y >= 32` to `y >= 160`."]]}}
+ ]};
+SWORD_DATA.dungeons.push(D);
+})();
 </script>
 <script>
 /* ===================== PLAYERS (profiles) ===================== */

@@ -52,7 +52,9 @@ function parseDungeon(D){
     else if(c>='1'&&c<='9'){P.anchors[+c-1]={x,y};g[y][x]='.';}
     if(g[y][x]==='.'&&c!=='.')P._fill=(P._fill||[]).concat([[x,y]]);}
   /* things placed on grass keep grass under them */
-  (P._fill||[]).forEach(([x,y])=>{let n=0;[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{if((g[y+dy]||[])[x+dx]===',')n++;});if(n>=2)g[y][x]=',';});
+  (P._fill||[]).forEach(([x,y])=>{const cnt={};[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{const t=(g[y+dy]||[])[x+dx];if(t===','||t==='~'||t==='_')cnt[t]=(cnt[t]||0)+1;});
+    /* a flying bat over water/pits keeps the hole under it; anything on grass keeps the grass */
+    const isBat=P.enemies.some(e=>e.kind==='bat'&&Math.floor(e.x/TS)===x&&Math.floor(e.y/TS)===y);for(const t of['~','_'])if(isBat&&cnt[t]>=2){g[y][x]=t;return;}if((cnt[',']||0)>=2)g[y][x]=',';});
   return P;}
 function mkEnemy(c,x,y){const k={s:'slime',b:'bat',x:'skel',a:'turret',X:'boss'}[c];
   return{kind:k,x,y,ox:x,oy:y,hp:{slime:2,bat:1,skel:3,turret:999,boss:14}[k],max:{slime:2,bat:1,skel:3,turret:999,boss:14}[k],r:{slime:11,bat:9,skel:11,turret:13,boss:24}[k],vx:0,vy:0,t:Math.random()*3,kb:0,alive:true,flash:0,cd:1+Math.random()*1.5};}
@@ -341,7 +343,7 @@ function flash(){const f=$w('.rfFlash');f.classList.remove('go');void f.offsetWi
 /* ------------------------------------------------------------------ HUD, banner, dialog */
 function hud(){if(!LV)return;const h=hero,mx=SV.maxHp||6;let s='';for(let i=0;i<mx;i+=2)s+=h.hp>=i+2?'❤️':h.hp===i+1?'💔':'🤍';$w('.swHearts').textContent=s;$w('.swGems').textContent='💎 '+h.gems;$w('.swKeys').textContent='🗝️ '+h.keys;}
 let bT;function banner(t){const b=$w('.rfBanner');b.textContent=t;b.classList.add('show');clearTimeout(bT);bT=setTimeout(()=>b.classList.remove('show'),1700);}
-function say(lines,done){const was=mode;mode='dialog';const box=$w('.rfDialog');dlg={lines:[].concat(lines),i:0,done,was};box.classList.remove('hidden');showLine();}
+function say(lines,done){if(!lines||!lines.length){done&&done();return;}const was=mode;mode='dialog';const box=$w('.rfDialog');dlg={lines:[].concat(lines),i:0,done,was};box.classList.remove('hidden');showLine();}
 function showLine(){const raw=dlg.lines[dlg.i];const m=/^([A-Z][\w .'-]{1,20}):\s+(.*)$/s.exec(raw);const who=m?m[1]:'',txt=m?m[2]:raw;
   $w('.rfWho').textContent=who;$w('.rfWho').style.display=who?'':'none';$w('.rfFace').textContent=({Rowan:'🛡️',Spark:'🧚','Hex King':'👑'})[who]||'';
   const el=$w('.rfText');let n=0;clearInterval(dlg.tm);el.textContent='';dlg.typing=true;dlg.cur=txt;dlg.tm=setInterval(()=>{n+=2;el.textContent=txt.slice(0,n);if(n>=txt.length){clearInterval(dlg.tm);dlg.typing=false;}},16);}
@@ -360,7 +362,7 @@ function openPanel(Z){if(mode!=='play')return;mode='code';activeZone=Z;keys={};s
       <div class="st-drawer"><div class="feedback"></div><div class="hintbox"></div></div></div>
     <div class="rfPact"><button class="btn" data-p="hint">💡 Hint</button><button class="btn" data-p="tip">✨ Tip</button><button class="btn" data-p="answer">👁 Answer</button><button class="btn ghost" data-p="reset">↺ Reset</button><button class="btn primary big" data-p="apply">⚡ Cast the rune</button></div>`;
   const ed=$('textarea',pnl),fb=(t,h)=>{const f=$('.feedback',pnl);f.className='feedback '+(t||'');f.innerHTML=h||'';},hb=$('.hintbox',pnl);
-  ed.value=SV.code[Z.id]||(Z.solved?L.answer:L.starter);TRACK.open('sword',L.id);
+  ed.value=SV.code[Z.id]||(Z.solved?L.answer:L.starter);ed.scrollTop=0;setTimeout(()=>{ed.scrollTop=0;},80);TRACK.open('sword',L.id);
   const live=debounce(async()=>{const code=ed.value;SV.code[Z.id]=code;saveSV();const r=await layout(Z,preview,code);if(PZ&&PZ.Z===Z)Z.ghost=r.rects;},260);
   wireEditor(ed,live,()=>apply());addSnips($('.snips',pnl),ed,live,L.js?['(',')','{','}',';','"','=','+','<','>','.','`','$']:undefined);
   const hintBtn=$('[data-p=hint]',pnl),lab=()=>hintBtn.textContent=`💡 Hint ${Math.min(PZ.hints,L.hints.length)}/${L.hints.length}`;lab();

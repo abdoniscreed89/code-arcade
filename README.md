@@ -5,7 +5,7 @@ Learn HTML, CSS and JavaScript by playing games. Made for kids aged about 6–14
 **Play it:** https://abdoniscreed89.github.io/code-arcade/
 
 ## What's inside
-- **Story adventures:** Codeling Quest, Rift Runner (a platformer where your code builds the platforms), **Spire City** (a 3D city: climb towers, and your code builds bridges, gates and lifts), Shadowblade (CSS) and Runebound (JavaScript)
+- **Story adventures:** Codeling Quest, Rift Runner (a platformer where your code builds the platforms), **Spire City** (a 3D city: climb towers, and your code builds bridges, gates and lifts), **Sword & Script** (a real-time Zelda-style action RPG: your code moves stone blocks and builds bridges), Shadowblade (CSS) and Runebound (JavaScript)
 - **Mini-games** for HTML, CSS, Flexbox, Grid and JavaScript
 - **63 guided projects:** build real websites step by step
 - **Profiles, stars, badges and a progress report** for parents. Saves stay in your browser.
