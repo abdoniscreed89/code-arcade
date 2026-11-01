@@ -79,7 +79,7 @@ async function checkCode(Z,frame,code){const {rects,api}=await layout(Z,frame,co
 
 /* ------------------------------------------------------------------ the world rules (shared by the game and the validator) */
 function world(P,zoneRects){/* zoneRects: [{kind,rects in world px,anim}] */
-  const blocks=[],bridges=[];zoneRects.forEach(z=>z.rects.forEach(r=>(z.kind==='bridge'?bridges:blocks).push({x:r.x,y:r.y,w:r.w,h:r.h,anim:z.anim})));
+  const blocks=[],bridges=[];zoneRects.forEach(z=>z.rects.forEach(r=>(z.kind==='bridge'?bridges:blocks).push({x:r.x,y:r.y,w:r.w,h:r.h,anim:z.anim,key:r.key})));
   const covered=pl=>blocks.some(b=>!b.anim&&pl.x*TS+16>=b.x&&pl.x*TS+16<=b.x+b.w&&pl.y*TS+16>=b.y&&pl.y*TS+16<=b.y+b.h);
   return{blocks,bridges,covered};}
 function roomPlates(P,rx,ry){return P.plates.filter(p=>Math.floor(p.x/RW)===rx&&Math.floor(p.y/RH)===ry);}
@@ -145,12 +145,14 @@ function startLevel(id){const L=levelById(id);if(!L)return;mapScr.classList.add(
   if(L.story&&!SV.seenIntro[L.id]){SV.seenIntro[L.id]=1;saveSV();say(L.story);}}
 
 /* ------------------------------------------------------------------ zones → world rects */
-const zoneWorld=Z=>Z.show.map(r=>({x:Z.x*TS+r.x,y:Z.y*TS+r.y,w:r.w,h:r.h,col:r.col,label:r.label}));
-function curWorld(){return world(P,ZONES.map(Z=>({kind:Z.kind,rects:zoneWorld(Z)})));}
+const zoneWorld=Z=>Z.show.map((r,k)=>({x:Z.x*TS+r.x,y:Z.y*TS+r.y,w:r.w,h:r.h,col:r.col,label:r.label,key:Z.i+':'+k}));
+function curWorld(){return world(P,ZONES.map(Z=>({kind:Z.kind,rects:zoneWorld(Z),anim:!!Z.lesson.anim})));}
 let W=null;
 function animZones(dt){ZONES.forEach(Z=>{
   if(Z.ft<1){Z.ft=Math.min(1,Z.ft+dt*3);const e=1-Math.pow(1-Z.ft,3);Z.show=Z.rects.map((r,i)=>{const f=Z.from&&Z.from[i]||{x:r.x+r.w/2,y:r.y+r.h/2,w:0,h:0};return{...r,x:f.x+(r.x-f.x)*e,y:f.y+(r.y-f.y)*e,w:f.w+(r.w-f.w)*e,h:f.h+(r.h-f.h)*e};});}
-  else if(Z.lesson.anim&&Z.frame.contentDocument){try{const rs=readRects(Z,makeApi(Z.frame.contentDocument,Z.frame.contentWindow));if(rs.length===Z.show.length||!Z.show.length){Z.rects=rs;Z.show=rs;}}catch(e){}}});}
+  else if(Z.lesson.anim&&Z.frame.contentDocument){try{const rs=readRects(Z,makeApi(Z.frame.contentDocument,Z.frame.contentWindow));if(rs.length===Z.show.length||!Z.show.length){Z.rects=rs;Z.show=rs;}}catch(e){}}
+  /* the see-through preview of a moving lesson moves too */
+  if(Z.lesson.anim&&activeZone===Z&&Z.ghost&&preview&&preview.contentDocument){try{Z.ghost=readRects(Z,makeApi(preview.contentDocument,preview.contentWindow));}catch(e){}}});}
 
 /* ------------------------------------------------------------------ collision */
 const tileAt=(x,y)=>(P.g[y]&&P.g[y][x])||'#';
@@ -169,8 +171,14 @@ function move(o,dx,dy,w,h,forFoe){let hit=false;if(dx){if(!hits(o.x+dx,o.y,w,h,f
 const DIRV={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
 function step(dt){const h=hero;timeIn+=dt;
   const prevW=W;W=curWorld();
-  /* moving bridges carry Rowan */
-  if(prevW&&!h.fall){for(let i=0;i<W.bridges.length&&i<prevW.bridges.length;i++){const a=prevW.bridges[i],b=W.bridges[i];if(h.x>=a.x&&h.x<=a.x+a.w&&h.y>=a.y&&h.y<=a.y+a.h){h.x+=b.x-a.x;h.y+=b.y-a.y;break;}}}
+  /* moving bridges carry Rowan (only while he is over a hole — on solid ground a bridge just slides under him);
+     bridges are matched by zone + index so another zone changing its count never makes him jump */
+  if(prevW&&!h.fall&&HOLE.has(tileAt(Math.floor(h.x/TS),Math.floor(h.y/TS)))){const old=new Map(prevW.bridges.filter(a=>a.anim).map(a=>[a.key,a]));
+    for(const b of W.bridges){const a=b.anim&&old.get(b.key);if(a&&(a.x!==b.x||a.y!==b.y)&&h.x>=a.x-1&&h.x<=a.x+a.w+1&&h.y>=a.y-1&&h.y<=a.y+a.h+1){h.x+=b.x-a.x;h.y+=b.y-a.y;break;}}}
+  /* moving blocks push Rowan instead of trapping him */
+  if(prevW&&!h.fall){const old=new Map(prevW.blocks.filter(a=>a.anim).map(a=>[a.key,a]));
+    for(const b of W.blocks){const a=b.anim&&old.get(b.key);if(!a||(a.x===b.x&&a.y===b.y))continue;
+      if(h.x+HERO.w/2>b.x&&h.x-HERO.w/2<b.x+b.w&&h.y+HERO.h/2>b.y&&h.y-HERO.h/2<b.y+b.h){const nx=h.x+b.x-a.x,ny=h.y+b.y-a.y,tx=Math.floor(nx/TS),ty=Math.floor(ny/TS);if(!solidTile(tx,ty)){h.x=nx;h.y=ny;}}}}
   if(h.inv>0)h.inv-=dt;if(h.swing>0)h.swing-=dt;
   if(h.fall>0){h.fall-=dt;if(h.fall<=0){h.x=entry.x;h.y=entry.y;hurt(1,true);}pressed={};return;}
   let ix=(keys.right?1:0)-(keys.left?1:0)+stick.x,iy=(keys.down?1:0)-(keys.up?1:0)+stick.y;const il=Math.hypot(ix,iy);if(il>1){ix/=il;iy/=il;}
