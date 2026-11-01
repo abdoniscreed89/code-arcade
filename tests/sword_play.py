@@ -1,0 +1,27 @@
+import sys,json
+from playwright.sync_api import sync_playwright
+# usage: sword_play.py built.html -> runtime checks on Dungeon 1: bridge, switch door, sword, key door, boss door, crystal
+html=sys.argv[1]
+JS=r'''async()=>{const T=SWORD._test;APP.show('sword');T.startLevel('k1');await new Promise(r=>setTimeout(r,400));
+ while(T.state().mode==='dialog')document.querySelector('#g-sword .rfDialog').click();
+ const sim=(sec,fn)=>{for(let i=0;i<sec*120;i++){fn&&fn(i);T.step(1/120);}};const H=()=>T.state().hero;const out={};
+ for(let i=0;i<3;i++)out['solve'+i]=await T.solve(i);await new Promise(r=>setTimeout(r,300));
+ /* sword: a slime in room A */ const S=T.state();const sl=S.P.enemies.find(e=>e.kind==='slime');T.teleport(Math.floor(sl.x/32)-1,Math.floor(sl.y/32));H().face='right';for(let k=0;k<6;k++){T.press('attack');sim(.3);}out.slimeDead=!sl.alive;
+ /* bridge in room B (row y=15) */ T.teleport(19,15);T.hold('right',true);sim(1.5);T.hold('right',false);out.bridgeX=+(H().x/32).toFixed(1);out.fell=H().fall>0;
+ /* switch door north of room C */ T.teleport(37,13);T.hold('up',true);sim(1.2);T.hold('up',false);out.doorY=+(H().y/32).toFixed(1);
+ /* key + locked door */ T.teleport(41,3);sim(.2);out.keys=H().keys;T.teleport(32,5);T.hold('left',true);sim(1.2);T.hold('left',false);out.lockX=+(H().x/32).toFixed(1);
+ /* pit bridge in room E (row y=5) */ T.teleport(25,5);T.hold('left',true);sim(1.6);T.hold('left',false);out.pitX=+(H().x/32).toFixed(1);
+ /* boss: weaken it, hit it, walk through the boss door to the crystal */ const B=T.state().P.boss;T.teleport(7,6);B.x=7*32+16;B.y=8*32+16;B.hp=1;H().face='down';H().inv=5;T.press('attack');sim(.4);out.bossDead=!B.alive;
+ T.teleport(7,4);T.hold('up',true);sim(1.5);T.hold('up',false);out.won=T.state().won;
+ return out;}'''
+with sync_playwright() as p:
+    b=p.chromium.launch();pg=b.new_page(viewport={'width':1280,'height':800});errs=[];pg.on('pageerror',lambda e:errs.append(str(e)[:200]))
+    pg.goto('file://'+html);pg.wait_for_timeout(700)
+    r=pg.evaluate(JS);print(json.dumps(r));bad=[]
+    if not r['slimeDead']:bad.append('sword')
+    if r['bridgeX']<24.5 or r['fell']:bad.append('bridge')
+    if r['doorY']>10.6:bad.append('switch door')
+    if r['keys']<1 or r['lockX']>29.6:bad.append('key door')
+    if r['pitX']>19.6:bad.append('pit bridge')
+    if not r['bossDead'] or not r['won']:bad.append('boss/crystal')
+    print('PLAY PROBLEMS',bad,'errors',errs)

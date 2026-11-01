@@ -16,7 +16,7 @@ if(!PROFILES.list.some(x=>x.id===PROFILES.current))PROFILES.current=PROFILES.lis
 const PID=PROFILES.current,SFX=PID==='p1'?'':'::'+PID,ME=PROFILES.list.find(x=>x.id===PID);
 const AKEY='code-arcade-v1'+SFX, QKEY='codeling-quest-v1'+SFX, Q2KEY='codeling-legends-v1'+SFX, STKEY='code-arcade-stats-v1'+SFX;
 const SAGA_IDS=['shadow','rune'];
-const profileKeys=id=>{const x=id==='p1'?'':'::'+id;return['code-arcade-v1','codeling-quest-v1','codeling-legends-v1','code-arcade-stats-v1','code-arcade-last-backup','rift-v1','spire-v1','saga-tomb-v1','code-arcade-hubcat',...SAGA_IDS.map(g=>'saga-'+g+'-v1')].map(k=>k+x);};
+const profileKeys=id=>{const x=id==='p1'?'':'::'+id;return['code-arcade-v1','codeling-quest-v1','codeling-legends-v1','code-arcade-stats-v1','code-arcade-last-backup','rift-v1','spire-v1','sword-v1','saga-tomb-v1','code-arcade-hubcat',...SAGA_IDS.map(g=>'saga-'+g+'-v1')].map(k=>k+x);};
 
 /* ---- learning stats (used by the progress report) ---- */
 const freshStats=()=>({v:1,levels:{},days:{},firstSeen:Date.now()});

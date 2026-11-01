@@ -49,7 +49,7 @@ const SKILLS={
  build:{n:'Building whole pages',d:'Putting many skills together into a real website.',g:'pcafe'}
 };
 const GNAME=new Proxy({},{get:(o,g)=>{const i=(typeof GAMEINFO!=='undefined'?GAMEINFO:[]).find(x=>x.id===g);if(i)return i.em+' '+i.t;const G=GAMES[g];return G?G.def.emoji+' '+G.def.title:undefined;}});
-const gorder=()=>['quest','quest2','rift','spire',...SAGA_IDS,...GAMEINFO.filter(g=>g.kind==='game').map(g=>g.id),...PK.PROJECTS.map(P=>P.id)];
+const gorder=()=>['quest','quest2','rift','spire','sword',...SAGA_IDS,...GAMEINFO.filter(g=>g.kind==='game').map(g=>g.id),...PK.PROJECTS.map(P=>P.id)];
 function skillsFor(g,L){
   const ch=L.ch||'',t=(L.title||'')+'';
   switch(g){
@@ -67,6 +67,7 @@ function skillsFor(g,L){
     case 'quiz':return['theory'];
     case 'shadow':return[['sel','box','css','lay','lay','fx'][L._ch]||'css'];
     case 'rune':return[['js','js','logic','logic','js','js'][L._ch]||'js'];
+    case 'sword':return[['html','box','lay','lay','fx','js'][L._w]||'build'];
     case 'spire':return[['html','box','lay','lay','fx','js'][L._w]||'build'];
     case 'rift':return[['html','box','lay','lay','fx','js'][L._w]||'build'];
     default:return['build',L.kind==='js'?'js':L.kind==='css'||/CSS/.test(ch)?'css':'html'];
@@ -75,7 +76,7 @@ function skillsFor(g,L){
 function profileData(pid){
   const sfx=pid==='p1'?'':'::'+pid,live=pid===PID;
   return{profile:PROFILES.list.find(x=>x.id===pid)||ME,prog:live?PROG:cleanProg(store.get('code-arcade-v1'+sfx,{})),quest:store.get('codeling-quest-v1'+sfx,null),
-    legends:store.get('codeling-legends-v1'+sfx,null),sagas:Object.fromEntries(SAGA_IDS.map(g=>[g,store.get('saga-'+g+'-v1'+sfx,null)])),rift:store.get('rift-v1'+sfx,null),spire:store.get('spire-v1'+sfx,null),stats:live?STATS:(store.get('code-arcade-stats-v1'+sfx,null)||freshStats())};
+    legends:store.get('codeling-legends-v1'+sfx,null),sagas:Object.fromEntries(SAGA_IDS.map(g=>[g,store.get('saga-'+g+'-v1'+sfx,null)])),rift:store.get('rift-v1'+sfx,null),spire:store.get('spire-v1'+sfx,null),sword:store.get('sword-v1'+sfx,null),stats:live?STATS:(store.get('code-arcade-stats-v1'+sfx,null)||freshStats())};
 }
 function collect(D){
   const SL=(D.stats&&D.stats.levels)||{},rows=[];
@@ -84,10 +85,11 @@ function collect(D){
   q1.forEach(L=>{let s=0;if(qc[L.id]){const r=SL['quest:'+L.id];s=r?(r.ans?1:r.h?2:3):2;}add('quest',L,s);});
   const lc=(D.legends&&D.legends.caught)||{};QUEST2.levels().forEach(L=>add('quest2',L,Math.max(0,Math.min(3,+lc[L.id]||0))));
   Object.keys((D.legends&&D.legends.trainers)||{}).forEach(tid=>{const r=SL['quest2:trainer:'+tid];add('quest2',{id:'trainer:'+tid,title:'Trainer quiz battle',region:'trainer'},r&&r.f?2:3);});
+  if(window.SWORD){const sv=(D.sword)||{};SWORD.lessons().forEach(L=>{add('sword',Object.assign({},L,{title:L._lv.name+' — '+L.concept,_w:L._lv._i}),Math.max(0,Math.min(3,+((sv.zones||{})[L._zid])||0)));});}
   if(window.SPIRE){const sv=(D.spire)||{};SPIRE.lessons().forEach(L=>{add('spire',Object.assign({},L,{title:L._lv.name+' — '+L.concept,_w:L._lv._i}),Math.max(0,Math.min(3,+((sv.zones||{})[L._zid])||0)));});}
   if(window.RIFT){const sv=(D.rift)||{};RIFT.lessons().forEach(L=>{add('rift',Object.assign({},L,{title:L._lv.name+' — '+L.concept,_w:L._lv._w}),Math.max(0,Math.min(3,+((sv.zones||{})[L._zid])||0)));});}
   for(const g of SAGA_IDS){if(!window.SAGAS||!SAGAS[g])continue;const sv=(D.sagas&&D.sagas[g])||{};SAGAS[g]._test.LS.forEach(L=>{const st=(sv.stars&&sv.stars[L.id])||(sv.done&&sv.done[L.id]?2:0);add(g,Object.assign({},L,{title:L.enemy+' — '+L.concept}),Math.max(0,Math.min(3,+st||0)));});}
-  for(const g of gorder()){if(SAGA_IDS.includes(g)||g==='quest'||g==='quest2'||g==='rift'||g==='spire')continue;const G=GAMES[g];if(!G)continue;const st=g==='cafe'?(D.prog.cafe.stars||{}):g[0]==='p'&&D.prog.proj?((D.prog.proj[g]||{}).stars||{}):(D.prog[g]||{});
+  for(const g of gorder()){if(SAGA_IDS.includes(g)||g==='quest'||g==='quest2'||g==='rift'||g==='spire'||g==='sword')continue;const G=GAMES[g];if(!G)continue;const st=g==='cafe'?(D.prog.cafe.stars||{}):g[0]==='p'&&D.prog.proj?((D.prog.proj[g]||{}).stars||{}):(D.prog[g]||{});
     G.def.levels.forEach(L=>add(g,L,Math.max(0,Math.min(3,+st[L.id]||0))));}
   rows.forEach(x=>{const r=x.r,f=r?(+r.f||0):0;x.tried=x.stars>0||(r&&(r.a>0||r.f>0||r.h>0));
     x.mastery=x.stars?Math.max(x.stars===3?70:x.stars===2?50:25,({3:100,2:75,1:40})[x.stars]-Math.min(25,f*6)):x.tried?20:null;x.fails=f;});
